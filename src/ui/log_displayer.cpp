@@ -50,8 +50,8 @@ Element LogDisplayer::RenderLines(const std::vector<Topic>& topics) {
       text("Size") | ftxui::size(WIDTH, EQUAL, num_size),
       separator(),
       text("Topic path") | flex,
-      separator(),
-      text(L"Time") | dim | ftxui::size(WIDTH, EQUAL, 14),
+      //separator(),
+      //text(L"Time") | dim | ftxui::size(WIDTH, EQUAL, 14),
   });
 
   auto previous_type = topics.size() ? topics[0].m_topic_type : "";
@@ -99,7 +99,7 @@ Element LogDisplayer::RenderLines(const std::vector<Topic>& topics) {
             text(it.m_path)  //
                 | flex,
 
-            separator(),
+            /*separator(),
 
             hbox({
                 text(to_wstring(0)),
@@ -111,7 +111,7 @@ Element LogDisplayer::RenderLines(const std::vector<Topic>& topics) {
             })                                   //
                 | dim                            //
                 | ftxui::size(WIDTH, EQUAL, 14)  //
-                | notflex,
+                | notflex,*/
         }) |
         flex | line_decorator;
     list.push_back(document);
@@ -144,7 +144,6 @@ bool LogDisplayer::OnEvent(Event event) {
   if (event == Event::PageDown)  {
     selected_ = selected_ + 10;
   }
-
   if (event == Event::PageUp)  {
     selected_ = selected_ - 10;
   }
