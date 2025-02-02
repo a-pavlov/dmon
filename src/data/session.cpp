@@ -169,8 +169,6 @@ static void on_session_state_changed (
 
 
 static int on_fetch(SESSION_T *session, void *context) {
-    auto s1 = static_cast<Session*>(context);
-    s1->onFetchTopic(Topic("COMPL", s1->getSelector(), nullptr, 0));
     spdlog::debug("session {} fetch completed", getSessionIdAsString(session->id));
     Session::getSession().onFetchCompleted(context);
     return HANDLER_SUCCESS;
