@@ -169,6 +169,8 @@ static void on_session_state_changed (
 
 
 static int on_fetch(SESSION_T *session, void *context) {
+    auto s1 = static_cast<Session*>(context);
+    s1->onFetchTopic(Topic("COMPL", s1->getSelector(), nullptr, 0));
     spdlog::debug("session {} fetch completed", getSessionIdAsString(session->id));
     Session::getSession().onFetchCompleted(context);
     return HANDLER_SUCCESS;
@@ -257,7 +259,7 @@ Session::~Session()
     }
 }
 
-bool Session::connect(const std::string& url, const std::string& principal, const std::string& password, std::string& message) {
+bool Session::connect(const std::string& url, const std::string& principal, const std::string& password, Error& e) {
     static RECONNECTION_STRATEGY_T m_rec_strategy;
     m_url = url;
     m_principal = principal;
@@ -286,14 +288,14 @@ bool Session::connect(const std::string& url, const std::string& principal, cons
         free(sid_str);*/
     }
     else {
-        message = error.message?error.message:"";
+        e = Error{error.code, error.message};
         free(error.message);
     }
 
     return getSession().m_session != nullptr;
 }
 
-void Session::fetch(const std::string& selector)
+bool Session::fetch(const std::string& selector)
 {
     // for testing purposes only
     if (!m_session) {
@@ -304,12 +306,11 @@ void Session::fetch(const std::string& selector)
         }
         //onFetchCompleted(nullptr);
         onFetchError(Error{DIFF_ERR_MESSAGE_LOSS, "Connection failed"});
-        return;
+        return true;
     }
 
     std::lock_guard<std::mutex> lk(m_fetchMtx);
     if (m_session  && !m_fetch_in_progress) {
-        m_topics.clear();
         FETCH_PARAMS_T params;
         params.on_fetch = &on_fetch;
         params.on_topic_message = &on_topic;
@@ -322,9 +323,12 @@ void Session::fetch(const std::string& selector)
         m_fetchStatus = Error{DIFF_ERR_SUCCESS, std::string()};
         m_fetch_in_progress = true;
         ::fetch(m_session, params);
+        return true;
     } else {
         spdlog::warn("fetch started without connection or when fetch in progress");
     }
+
+    return false;
 }
 
 void Session::onFetchTopic(Topic&& t) {

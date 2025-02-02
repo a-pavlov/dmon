@@ -69,6 +69,7 @@ Element LogDisplayer::RenderLines(const std::vector<Topic>& topics) {
 
     if (is_focus) {
       std::stringstream ss;
+      ss << it.m_path << " ";
       ss << CustomHexdump<32, true>(&it.m_buffer[0], it.m_buffer.size());
       m_seltext = ss.str();
       line_decorator = line_decorator | focus;
@@ -151,8 +152,7 @@ bool LogDisplayer::OnEvent(Event event) {
   selected_ = std::max(0, std::min(size-1, selected_));
 
   if (selected_ != old_selected) {
-    // hack
-    m_parent.Render();
+    animation::RequestAnimationFrame();
     return true;
   }
 

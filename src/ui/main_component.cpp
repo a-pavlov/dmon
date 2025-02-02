@@ -11,11 +11,12 @@ using namespace ftxui;
 std::mutex MainComponent::test_lock;
 std::string MainComponent::test_data;
 
-MainComponent::MainComponent(Session& session, Closure&& screen_exit)
+MainComponent::MainComponent(Session& session, Animator& animator, Closure&& screen_exit)
     : m_screen_exit_(std::move(screen_exit)),
-      log_displayer_1_(Make<LogDisplayer>(*this)),
-      log_displayer_2_(Make<LogDisplayer>(*this)),
-      m_session(session)
+      log_displayer_1_(Make<LogDisplayer>()),
+      log_displayer_2_(Make<LogDisplayer>()),
+      m_session(session),
+      m_animator(animator)
     {
   Add(Container::Vertical({
       toggle_,
@@ -44,12 +45,16 @@ bool MainComponent::OnEvent(Event event) {
     m_current_payload = test_data;
   }
 
+  if (event == Event::Special("animation")) {
+    ++m_spinner_indx;
+  }
+
   return ComponentBase::OnEvent(event);
 }
 
 
 Element MainComponent::Render() {
-  static int i = 0;
+  //static int i = 0;
 
   m_current_payload = log_displayer_1_->GetSelected();
 
@@ -74,8 +79,8 @@ Element MainComponent::Render() {
       gauge(float(current_line) /
             float(std::max(1, (int)m_session.getFetchedTopics().size() - 1))) |
           color(Color::GrayDark),
-      separator(),
-      spinner(18, i++),
+      //separator()//,
+      //spinner(18, m_spinner_indx),
   });
 
   Element tab_menu;

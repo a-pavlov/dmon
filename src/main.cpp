@@ -49,8 +49,9 @@ void LineProducer(int fd,
   }
 }
 
-// selector https://docs.diffusiondata.com/docs/6.1.5/manual/html-single/diffusion_single.html#topic_selector_unified
 
+
+// selector https://docs.diffusiondata.com/docs/6.1.5/manual/html-single/diffusion_single.html#topic_selector_unified
 ARG_OPTS_T arg_opts[] = {
     ARG_OPTS_HELP,
     {'u', "url", "Diffusion server URL", ARG_OPTIONAL, ARG_HAS_VALUE, "ws://localhost:8080"},
@@ -77,19 +78,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  spdlog::set_level(spdlog::level::debug); // Set global log level to debug
-
-  spdlog::info("Welcome to spdlog!");
-  spdlog::error("Some error message with arg: {}", 1);
-
-  spdlog::warn("Easy padding in numbers like {:08d}", 12);
-  spdlog::critical("Support for int: {0:d};  hex: {0:x};  oct: {0:o}; bin: {0:b}", 42);
-  spdlog::info("Support for floats {:03.2f}", 1.23456);
-  spdlog::info("Positional args are {1} {0}..", "too", "supported");
-  spdlog::info("{:<30}", "left aligned");
-
-  spdlog::debug("This message should be displayed..");
-
+  spdlog::set_level(spdlog::level::debug);
 
   /*
     * Standard command-line parsing.
@@ -123,9 +112,10 @@ int main(int argc, char** argv) {
 
     spdlog::info("application has started url {} principal {} password {}", url, principal, reconnect_timeout);
     auto& session = Session::getSession();
-    std::string connectError;
-    if (!session.connect(url, principal, password, connectError)) {
-      std::cout << "Can not connect " << connectError << std::endl;
+    Error e;
+    if (!session.connect(url, principal, password, e)) {
+      spdlog::warn("Connection error {} message {}", error2Str(e.m_code), e.m_message);
+      std::cerr << "Connection error " << error2Str(e.m_code) << ": " << e.m_message << std::endl;
       //return 1;
     }
 
@@ -135,18 +125,21 @@ int main(int argc, char** argv) {
   //auto line_sender = line_receiver->MakeSender();
 
   auto screen = ScreenInteractive::Fullscreen();
+  Animator animator(screen);
 
-  session.setFetchCompletedCallback([&screen]() {
+  session.setFetchCompletedCallback([&screen, &animator]() {
+    animator.stop();
     screen.PostEvent(Event::Special("fetch"));
   });
 
-  session.setFetchErrorCallback([&screen](Error error) {
+  session.setFetchErrorCallback([&screen, &animator](Error error) {
+    animator.stop();
     screen.PostEvent(Event::Special("fetch"));
   });
 
   //std::atomic<bool> exit{false};
 
-  auto component = std::make_shared<MainComponent>(session, screen.ExitLoopClosure());
+  auto component = std::make_shared<MainComponent>(session, animator, screen.ExitLoopClosure());
 
   /*std::thread producer = std::thread([&exit, &screen](){
     int counter{0};
