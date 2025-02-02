@@ -24,26 +24,24 @@ MainComponent::MainComponent(Session& session, Closure&& screen_exit)
               Container::Vertical({
                   Container::Horizontal({
                       container_search_selector_,
-                      btn_search_,
+                                           m_btn_search_,
                       m_btn_clear_
                   }),
-                  m_test,
-                  log_displayer_1_,
-                  text_box_,
+                    m_error_report,
+                  log_displayer_1_, m_payload_text_box_,
                   m_btn_copy_
               }),
               log_displayer_2_,
               info_component_,
           },
           &tab_selected_),
-      btn_exit_
-  }));
+       m_btn_exit_}));
 }
 
 bool MainComponent::OnEvent(Event event) {
   if (event == Event::Special("fetch")) {
     std::lock_guard<std::mutex> lk(test_lock);
-    m_text = test_data;
+    m_current_payload = test_data;
   }
 
   return ComponentBase::OnEvent(event);
@@ -53,7 +51,7 @@ bool MainComponent::OnEvent(Event event) {
 Element MainComponent::Render() {
   static int i = 0;
 
-  m_text = log_displayer_1_->GetSelected();
+  m_current_payload = log_displayer_1_->GetSelected();
 
   int current_line =
       (std::min(tab_selected_, 1) == 0 ? log_displayer_1_ : log_displayer_2_)
@@ -64,7 +62,7 @@ Element MainComponent::Render() {
       separator(),
       hcenter(toggle_->Render()),
       separator(),
-      btn_exit_->Render(),
+      m_btn_exit_->Render(),
       separator(),
       text(to_wstring(current_line)),
       text(L"/"),
@@ -86,8 +84,9 @@ Element MainComponent::Render() {
         vbox({
             header,
             separator(),
-            window(text(L"Selector"), hbox(text("Enter path:"), separator(), container_search_selector_->Render(), btn_search_->Render(), m_btn_clear_->Render()) | notflex),
-            m_test->Render(),
+            window(text(L"Selector"), hbox(text("Enter path:"), separator(), container_search_selector_->Render(),
+                         m_btn_search_->Render(), m_btn_clear_->Render()) | notflex),
+             m_error_report->Render(),
 
             /*hbox({
                 window(text(L"Type"), container_level_filter_->Render()) |
@@ -95,11 +94,11 @@ Element MainComponent::Render() {
                 text(L" "),
                 window(text(L"Filter"), hbox(thread_filter_document)) | notflex,
                 text(L" ")
-                //window(text(L"Selector"), hbox(container_search_selector_->Render(), btn_search_->Render())) | flex,
+                //window(text(L"Selector"), hbox(container_search_selector_->Render(), m_btn_search_->Render())) | flex,
                 //filler(),
             }) | notflex,*/
             log_displayer_1_->RenderLines(m_session.getFetchedTopics()) | flex_shrink,
-            window(text("Content"), hbox(text_box_->Render() | size(ftxui::HEIGHT, ftxui::EQUAL, 10) | xflex_grow, vbox(m_btn_copy_->Render())))
+            window(text("Content"), hbox(m_payload_text_box_->Render() | size(ftxui::HEIGHT, ftxui::EQUAL, 10) | xflex_grow, vbox(m_btn_copy_->Render())))
         });
   }
 

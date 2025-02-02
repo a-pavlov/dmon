@@ -7,6 +7,7 @@
 #include <memory>
 #include "session.h"
 #include "spdlog/spdlog.h"
+#include "hexdump.h"
 
 std::string getSessionIdAsString(const SESSION_ID_T* session_id)
 {
@@ -66,6 +67,51 @@ std::string topicType2Str(MESSAGE_TYPE_T mt) {
     }
 }
 
+std::string error2Str(ERROR_CODE_T ec) {
+    const static std::string codes[] = {"SUCCESS",
+                                        "UNKNOWN",
+                                        "SERVICE",
+                                        "SESSION_CREATE_FAILED",
+                                        "TRANSPORT_CREATE_FAILED",
+                                        "NO_SESSION",
+                                        "NO_TRANSPORT",
+                                        "NO_START_FN",
+                                        "NO_CLOSE_FN",
+                                        "NO_SERVERS_DEFINED",
+                                        "ADDR_LOOKUP_FAIL",
+                                        "SOCKET_CREATE_FAIL",
+                                        "SOCKET_CONNECT_FAIL",
+                                        "HANDSHAKE_SEND_FAIL",
+                                        "HANDSHAKE_RECV_FAIL",
+                                        "INVALID_CONNECTION_PROTOCOL",
+                                        "INVALID_TOPIC_SPECIFICATION",
+                                        "TOPIC_ALREADY_EXISTS",
+                                        "CONNECTION_REJECTED",
+                                        "CONNECTION_ERROR_UNDEFINED",
+                                        "MESSAGE_QUEUE_FAIL",
+                                        "MESSAGE_SEND_FAIL",
+                                        "PARSE_URL",
+                                        "UNKNOWN_TRANSPORT",
+                                        "SOCKET_READ_FAIL",
+                                        "SOCKET_WRITE_FAIL",
+                                        "DOWNGRADE",
+                                        "CONNECTION_UNSUPPORTED",
+                                        "LICENCE_EXCEEDED",
+                                        "RECONNECTION_UNSUPPORTED",
+                                        "CONNECTION_PROTOCOL_ERROR",
+                                        "AUTHENTICATION_FAILED",
+                                        "PROTOCOL_VERSION",
+                                        "UNKNOWN_SESSION",
+                                        "MESSAGE_LOSS"};
+
+    if (static_cast<size_t>(ec) >= sizeof(codes)/sizeof(codes[0])) {
+      return "???";
+    }
+
+    return codes[static_cast<size_t>(ec)];
+}
+
+// for test purposes
 std::string gen_random(const int len) {
     static const char alphanum[] =
         "0123456789"
@@ -125,28 +171,29 @@ static void on_session_state_changed (
 static int on_fetch(SESSION_T *session, void *context) {
     auto s1 = static_cast<Session*>(context);
     s1->onFetchTopic(Topic("COMPL", s1->getSelector(), nullptr, 0));
+    spdlog::debug("session {} fetch completed", getSessionIdAsString(session->id));
     Session::getSession().onFetchCompleted(context);
     return HANDLER_SUCCESS;
 }
 
 static int on_topic(struct session_s *session, const TOPIC_MESSAGE_T *message) {
     if (message) {
+        spdlog::debug("session {} fetch topic {}", getSessionIdAsString(session->id), message->name);
         auto& s = Session::getSession();
         s.onFetchTopic(Topic(topicType2Str(message->type), message->name,
                              message->payload->data, message->payload->len));
-        //buf_free(message->payload);
         return HANDLER_SUCCESS;
+    } else {
+        spdlog::warn("session {} fetch topic without message", getSessionIdAsString(session->id));
     }
-    return HANDLER_SUCCESS;
-    //return HANDLER_FAILURE;
+    return HANDLER_FAILURE;
 }
 
 static int on_fetch_error(SESSION_T * session, const DIFFUSION_ERROR_T *error) {
     if (error != nullptr) {
-        auto& s1 = Session::getSession();
-        s1.onFetchTopic(Topic("ERROR", error->message, nullptr, 0));
+        spdlog::warn("session {} fetch topic error {} message {}", getSessionIdAsString(session->id), error2Str(error->code), error->message);
         Session::getSession().onFetchError(
-            Error{static_cast<int>(error->code), std::string(error->message)});
+            Error{error->code, std::string(error->message)});
         return HANDLER_SUCCESS;
     }
 
@@ -155,36 +202,28 @@ static int on_fetch_error(SESSION_T * session, const DIFFUSION_ERROR_T *error) {
 
 static int on_fetch_status_message(SESSION_T *session,
                                    const SVC_FETCH_STATUS_RESPONSE_T *status,
-                                   void *context)
-{
-    auto s1 = static_cast<Session*>(context);
-    s1->onFetchTopic(Topic("FETCHSTAT", s1->getSelector() + status->topic_path, nullptr, 0));
-    return HANDLER_SUCCESS;
+                                   void *context) {
+    if (status) {
+        std::stringstream ss;
+        if (status->payload && status->payload->data) {
+          ss << CustomHexdump<32, false>(status->payload->data,
+                                         status->payload->len);
+        }
+        spdlog::warn("session {} fetch status {} payload {}",
+                     getSessionIdAsString(session->id), status->status_flag,
+                     ss.str());
+        return HANDLER_SUCCESS;
+    }
+    return HANDLER_FAILURE;
 }
 
 static int on_fetch_discard(struct session_s *session, void *context)
 {
-    auto s1 = static_cast<Session*>(context);
-    s1->onFetchTopic(Topic("DISK", s1->getSelector(), nullptr, 0));
+    spdlog::warn("session {} fetch discard", getSessionIdAsString(session->id));
     return HANDLER_SUCCESS;
 }
 
-/*void Session::fetch(const std::string& selector)
-{
-    if (m_session_handle)
-    {
-        FETCH_PARAMS_T params;
-        params.on_fetch = &on_fetch;
-        params.on_topic_message = &on_topic;
-        params.selector = selector.c_str();
-        params.on_error = &on_fetch_error;
-        params.on_status_message = &on_fetch_status_message;
-        params.on_discard = &on_fetch_discard;
-        params.context = this;
-        ::fetch(m_session_handle, params);
-    }
-}
-
+/*
 void Session::subscribe(const std::string& selector)
 {
 
@@ -192,20 +231,6 @@ void Session::subscribe(const std::string& selector)
 */
 
 
-/*
-void Session::Private::fetch(const std::string& selector, OnFetch&& callback)
-{
-    FETCH_PARAMS_T params;
-    params.on_fetch = &on_fetch;
-    params.on_topic_message = &on_topic;
-    params.selector = selector.c_str();
-    params.on_error = &on_fetch_error;
-    params.on_status_message = &on_fetch_status_message;
-    params.on_discard = &on_fetch_discard;
-    params.context = this;
-    global_fetch = std::move(callback);
-    ::fetch(global_session, params);
-}*/
 
 Session& Session::getSession() {
     static Session ses;
@@ -280,7 +305,7 @@ void Session::fetch(const std::string& selector)
                                 gen_random(40), nullptr, 0);
         }
         //onFetchCompleted(nullptr);
-        onFetchError(Error{12, "Connection failed"});
+        onFetchError(Error{DIFF_ERR_MESSAGE_LOSS, "Connection failed"});
         return;
     }
 
@@ -295,7 +320,7 @@ void Session::fetch(const std::string& selector)
         params.on_discard = &on_fetch_discard;
         params.context = this;
         m_selector = selector;
-        m_fetchStatus = Error{0, std::string()};
+        m_fetchStatus = Error{DIFF_ERR_SUCCESS, std::string()};
         m_fetch_in_progress = true;
         ::fetch(m_session, params);
     } else {

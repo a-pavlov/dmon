@@ -12,8 +12,10 @@
 
 #include "diffusion.h"
 
+std::string error2Str(ERROR_CODE_T ec);
+
 struct Error {
-  int m_code{0};
+  ERROR_CODE_T m_code{DIFF_ERR_SUCCESS};
   std::string m_message;
 };
 
@@ -42,6 +44,11 @@ public:
 
   std::string getSelector() const {
     return m_selector;
+  }
+
+  std::string getLastFetchStatusStr()  {
+    std::lock_guard<std::mutex> lk(m_fetchMtx);
+    return error2Str(m_fetchStatus.m_code) + ": " + m_fetchStatus.m_message;
   }
 
   bool connect(const std::string& url, const std::string& principal, const std::string& password, std::string& message);

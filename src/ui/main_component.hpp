@@ -24,13 +24,9 @@ class MainComponent : public ComponentBase {
   Element Render() override;
   bool OnEvent(Event) override;
 
-  bool isF() const {
-    return log_displayer_1_->Focusable();
-  }
-
  private:
   Closure m_screen_exit_;
-  std::string m_text = "Some content\nLne2\nLine4\n Finish line here";
+  std::string m_current_payload;
   std::string m_search_selector;
 
   std::map<int, std::pair<std::wstring, std::map<int, std::wstring>>>
@@ -54,21 +50,21 @@ class MainComponent : public ComponentBase {
       m_session.fetch(m_search_selector);
     }
   }});
-  Component btn_search_ = Button("Search", [&]{
+  Component m_btn_search_ = Button("Search", [&]{
         if (!m_search_selector.empty()) {
           m_session.fetch(m_search_selector);
         }
       }, ButtonOption::Ascii());
-  Component text_box_ = Input(&m_text, InputOption{.multiline = true});
-  Component btn_exit_ = Button("Exit", m_screen_exit_, ButtonOption::Ascii());
+  Component m_payload_text_box_ = Input(&m_current_payload, InputOption{.multiline = true});
+  Component m_btn_exit_ = Button("Exit", m_screen_exit_, ButtonOption::Ascii());
   Component m_btn_copy_ = Button("Copy", [](){}, ButtonOption::Ascii());
   Component m_btn_clear_ = Button("Clear", [&](){
         m_search_selector.clear();
       }, ButtonOption::Ascii());
 
-  Component m_test = Renderer([&] {
-    return window(text("Fetching status"),  text(m_session.isFetchInProgress()?"In progress":"Failed: " + m_session.getLastFetchStatus().m_message)| color(m_session.getLastFetchStatus().m_code!=0?Color::Red:Color::Yellow));
-  }) | Maybe([&] { return m_session.isFetchInProgress() || m_session.getLastFetchStatus().m_code != 0; });
+  Component m_error_report = Renderer([&] {
+    return window(text("Fetching status"),  text(m_session.isFetchInProgress()?std::string("In progress"):m_session.getLastFetchStatusStr())| color(m_session.getLastFetchStatus().m_code!=DIFF_ERR_SUCCESS?Color::Red:Color::Yellow));
+  }) | Maybe([&] { return m_session.isFetchInProgress() || m_session.getLastFetchStatus().m_code != DIFF_ERR_SUCCESS; });
 
   Session& m_session;
 };

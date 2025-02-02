@@ -22,6 +22,14 @@ if(NOT ftxui_POPULATED)
   add_subdirectory(${ftxui_SOURCE_DIR} ${ftxui_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
+FetchContent_Declare(
+        spdlog
+        GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG v1.15.1
+)
+
+FetchContent_MakeAvailable(spdlog)
+
 project(dmon
   LANGUAGES CXX
   VERSION 1.0.0
@@ -37,7 +45,7 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wall -fP
 link_directories(${PROJECT_SOURCE_DIR}/diffusion/lib)
 link_directories(${PROJECT_SOURCE_DIR}/diffusion/lib)
 include_directories(${PROJECT_SOURCE_DIR}/diffusion/include)
-include_directories(${PROJECT_SOURCE_DIR}/spdlog)
+#include_directories(${PROJECT_SOURCE_DIR}/spdlog)
 
 # openssl
 set(OPENSSL_USE_STATIC_LIBS TRUE)
@@ -94,6 +102,7 @@ target_link_libraries(dmon
   PRIVATE ftxui::screen
   PRIVATE ftxui::dom
   PRIVATE ftxui::component
+  PRIVATE spdlog::spdlog
 )
 
 set_target_properties(dmon PROPERTIES CXX_STANDARD 17)
