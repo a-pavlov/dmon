@@ -298,7 +298,7 @@ bool Session::fetch(const std::string& selector)
     // for testing purposes only
     if (!m_session) {
         m_fetch_in_progress = true;
-        for (int i = 0; i < 10; ++i) {
+        for (int i = 0; i < 100; ++i) {
           m_topics.emplace_back("TOPIC_LOAD",
                                 gen_random(40), nullptr, 0);
         }

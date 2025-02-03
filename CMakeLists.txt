@@ -15,12 +15,11 @@ FetchContent_Declare(ftxui
         )
 FetchContent_MakeAvailable(ftxui)
 
-
-FetchContent_GetProperties(ftxui)
-if(NOT ftxui_POPULATED)
-  FetchContent_Populate(ftxui)
-  add_subdirectory(${ftxui_SOURCE_DIR} ${ftxui_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
+#FetchContent_GetProperties(ftxui)
+#if(NOT ftxui_POPULATED)
+#  FetchContent_Populate(ftxui)
+#  add_subdirectory(${ftxui_SOURCE_DIR} ${ftxui_BINARY_DIR} EXCLUDE_FROM_ALL)
+#endif()
 
 FetchContent_Declare(
         spdlog
@@ -29,6 +28,20 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(spdlog)
+
+FetchContent_Declare(
+        clip
+        GIT_REPOSITORY https://github.com/dacap/clip.git
+        GIT_TAG v1.9
+)
+
+FetchContent_GetProperties(clip)
+if(NOT clip_POPULATED)
+  FetchContent_Populate(clip)
+  add_subdirectory(${clip_SOURCE_DIR} ${clip_BINARY_DIR})
+endif()
+
+#FetchContent_MakeAvailable(clip)
 
 project(dmon
   LANGUAGES CXX
@@ -45,7 +58,9 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO  "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wall -fP
 link_directories(${PROJECT_SOURCE_DIR}/diffusion/lib)
 link_directories(${PROJECT_SOURCE_DIR}/diffusion/lib)
 include_directories(${PROJECT_SOURCE_DIR}/diffusion/include)
-#include_directories(${PROJECT_SOURCE_DIR}/spdlog)
+
+#clip some hack
+include_directories(${clip_SOURCE_DIR})
 
 # openssl
 set(OPENSSL_USE_STATIC_LIBS TRUE)
@@ -103,6 +118,7 @@ target_link_libraries(dmon
   PRIVATE ftxui::dom
   PRIVATE ftxui::component
   PRIVATE spdlog::spdlog
+  PRIVATE clip
 )
 
 set_target_properties(dmon PROPERTIES CXX_STANDARD 17)

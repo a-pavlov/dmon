@@ -14,6 +14,7 @@
 
 #include "data/session.h"
 #include "spdlog/spdlog.h"
+#include "clip.h"
 
 using namespace ftxui;
 
@@ -127,7 +128,8 @@ class MainComponent : public ComponentBase {
   Component m_payload_text_box_ = Input(&m_current_payload, InputOption{.multiline = true});
   Component m_btn_exit_ = Button("Exit", m_screen_exit_, ButtonOption::Ascii());
   Component m_btn_copy_ = Button("Copy", [&](){
-        //m_animator.start();
+        spdlog::debug("Copy to clipboard: {}", m_current_payload);
+        clip::set_text(m_current_payload);
       }, ButtonOption::Ascii());
   Component m_btn_clear_ = Button("Clear", [&](){
         m_search_selector.clear();
