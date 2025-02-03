@@ -47,6 +47,7 @@ bool MainComponent::OnEvent(Event event) {
 
   if (event == Event::Special("animation")) {
     ++m_spinner_indx;
+    return true;
   }
 
   return ComponentBase::OnEvent(event);

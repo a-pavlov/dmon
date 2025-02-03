@@ -43,7 +43,6 @@ Element LogDisplayer::RenderLines(const std::vector<Topic>& topics) {
     size_type = std::max(size_type, it.m_topic_type.length());
   }
 
-
   auto header = hbox({
       text("Type") | ftxui::size(WIDTH, EQUAL, size_type),
       separator(),
@@ -69,7 +68,7 @@ Element LogDisplayer::RenderLines(const std::vector<Topic>& topics) {
 
     if (is_focus) {
       std::stringstream ss;
-      ss << it.m_path << " ";
+      ss << it.m_path << ":\n";
       ss << CustomHexdump<32, true>(&it.m_buffer[0], it.m_buffer.size());
       m_seltext = ss.str();
       line_decorator = line_decorator | focus;

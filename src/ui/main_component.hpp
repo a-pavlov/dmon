@@ -112,12 +112,14 @@ class MainComponent : public ComponentBase {
   Component container_search_selector_ = Input(&m_search_selector, "", InputOption{.multiline=false, .on_change=[&](){
   }, .on_enter = [&](){
     if (!m_search_selector.empty() && m_session.fetch(m_search_selector)) {
+      log_displayer_1_->clearSelected();
       m_spinner_indx = 0;
       m_animator.start();
     }
   }});
   Component m_btn_search_ = Button("Search", [&]{
         if (!m_search_selector.empty() && m_session.fetch(m_search_selector)) {
+          log_displayer_1_->clearSelected();
           m_spinner_indx = 0;
           m_animator.start();
         }

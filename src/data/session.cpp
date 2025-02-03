@@ -320,6 +320,9 @@ bool Session::fetch(const std::string& selector)
         m_selector = selector;
         m_fetchStatus = Error{DIFF_ERR_SUCCESS, std::string()};
         m_fetch_in_progress = true;
+
+        m_topics.clear();
+        spdlog::debug("request fetch on selector {}", selector);
         ::fetch(m_session, params);
         return true;
     } else {

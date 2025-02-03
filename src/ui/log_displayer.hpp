@@ -20,6 +20,10 @@ class LogDisplayer : public ComponentBase {
     return m_seltext;
   }
 
+  void clearSelected() {
+    m_seltext.clear();
+  }
+
  private:
   int selected_ = 0;
   int size = 0;
