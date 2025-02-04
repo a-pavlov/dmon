@@ -111,6 +111,10 @@ std::string error2Str(ERROR_CODE_T ec) {
     return codes[static_cast<size_t>(ec)];
 }
 
+SubscriptionReason transformReason(NOTIFY_UNSUBSCRIPTION_REASON_T r) {
+    return static_cast<SubscriptionReason>(r);
+}
+
 // for test purposes
 std::string gen_random(const int len) {
     static const char alphanum[] =
@@ -167,6 +171,11 @@ static void on_session_state_changed (
 {
 }
 
+static void on_session_handle_error() {
+  spdlog::warn("session report error");
+}
+
+// ============== FETCH
 
 static int on_fetch(SESSION_T *session, void *context) {
     spdlog::debug("session {} fetch completed", getSessionIdAsString(session->id));
@@ -221,14 +230,121 @@ static int on_fetch_discard(struct session_s *session, void *context)
     return HANDLER_SUCCESS;
 }
 
+
+// ========== SUBSCRIPTION ==========
 /*
-void Session::subscribe(const std::string& selector)
+ * When a subscribed message is received, this callback is invoked.
+ */
+static int on_subscribe_topic_message(SESSION_T *session, const TOPIC_MESSAGE_T *message)
 {
-
+    if (message) {
+        spdlog::debug("session {} fetch topic {}", getSessionIdAsString(session->id), message->name);
+        auto& s = Session::getSession();
+        s.onSubscribeTopic(Topic(topicType2Str(message->type), message->name,
+                             message->payload->data, message->payload->len));
+        return HANDLER_SUCCESS;
+    } else {
+        spdlog::warn("session {} fetch topic without message", getSessionIdAsString(session->id));
+    }
+    return HANDLER_FAILURE;
 }
-*/
+
+/*
+ * This callback is fired when Diffusion responds to say that a topic
+ * subscription request has been received and processed.
+ */
+static int on_subscribe(SESSION_T *session, void *context) {
+    spdlog::debug("on subscribe completed {}", getSessionIdAsString(session->id));
+    Session* ses = static_cast<Session*>(context);
+    ses->onSubscribeCompleted();
+    return HANDLER_SUCCESS;
+}
+
+/*
+ * Publishers and control clients may choose to subscribe any other client to
+ * a topic of their choice at any time. We register this callback to capture
+ * messages from these topics and display them.
+ */
+/*static int on_unexpected_topic_message(SESSION_T *session, const TOPIC_MESSAGE_T *msg)
+{
+    printf("Received a message for a topic we didn't subscribe to (%s)\n", msg->name);
+    printf("Payload: %.*s\n", (int)msg->payload->len, msg->payload->data);
+    return HANDLER_SUCCESS;
+}*/
+
+/*
+ * We use this callback when Diffusion notifies us that we've been subscribed
+ * to a topic. Note that this could be called for topics that we haven't
+ * explicitly subscribed to - other control clients or publishers may ask to
+ * subscribe us to a topic.
+ */
+static int on_notify_subscription(SESSION_T *session, const SVC_NOTIFY_SUBSCRIPTION_REQUEST_T *request, void *context)
+{
+    Session* ses = static_cast<Session*>(context);
+    ses->onTopicSubscriptionEvent(SubscriptionNotification{request->topic_info.topic_id, request->topic_info.topic_path, SubscriptionReason::REASON_SUBSCRIBE});
+    spdlog::debug("notify on subscription {}", request->topic_info.topic_path);
+    return HANDLER_SUCCESS;
+}
+
+/*
+ * This callback is used when we receive notification that this client has been
+ * unsubscribed from a specific topic. Causes of the unsubscription are the same
+ * as those for subscription.
+ */
+static int on_notify_unsubscription(SESSION_T *session, const SVC_NOTIFY_UNSUBSCRIPTION_REQUEST_T *request, void *context)
+{
+    Session* ses = static_cast<Session*>(context);
+    ses->onTopicSubscriptionEvent(SubscriptionNotification{request->topic_id, request->topic_path, transformReason(request->reason)});
+    spdlog::debug("notify on unsubscription {}", request->topic_path);
+    return HANDLER_SUCCESS;
+}
+
+static int on_subscribe_error(SESSION_T * session, const DIFFUSION_ERROR_T *error) {
+    if (error != nullptr) {
+        spdlog::warn("session {} fetch topic error {} message {}", getSessionIdAsString(session->id), error2Str(error->code), error->message);
+        Session::getSession().onFetchError(
+            Error{error->code, std::string(error->message)});
+        return HANDLER_SUCCESS;
+    }
+
+    return HANDLER_FAILURE;
+}
+
+static int on_subscribe_discard(struct session_s *session, void *context)
+{
+    spdlog::warn("session {} subscribe discard", getSessionIdAsString(session->id));
+    return HANDLER_SUCCESS;
+}
 
 
+// ======== UNSUBSCRIBE
+
+/*
+ * This is callback is for when Diffusion response to an unsubscription
+ * request to a topic, and only indicates that the request has been received.
+ */
+static int on_unsubscribe(SESSION_T *session, void *context_data)
+{
+    printf("on_unsubscribe\n");
+    return HANDLER_SUCCESS;
+}
+
+static int on_unsubscribe_error(SESSION_T * session, const DIFFUSION_ERROR_T *error) {
+    if (error != nullptr) {
+        spdlog::warn("session {} unsubscribe error {} message {}", getSessionIdAsString(session->id), error2Str(error->code), error->message);
+        Session::getSession().onFetchError(
+            Error{error->code, std::string(error->message)});
+        return HANDLER_SUCCESS;
+    }
+
+    return HANDLER_FAILURE;
+}
+
+static int on_unsubscribe_discard(struct session_s *session, void *context)
+{
+    spdlog::warn("session {} unsubscribe discard", getSessionIdAsString(session->id));
+    return HANDLER_SUCCESS;
+}
 
 Session& Session::getSession() {
     static Session ses;
@@ -239,6 +355,7 @@ Session::Session() : m_session(nullptr)
       , m_fetch_completed_callback(nullptr)
       , m_fetch_error_callback(nullptr)
       , m_fetch_in_progress(false)
+      , m_subscribe_in_progress(false)
 {
 
 }
@@ -265,7 +382,7 @@ bool Session::connect(const std::string& url, const std::string& principal, cons
     m_credentials = credentials_create_password(m_password.c_str());
     static SESSION_LISTENER_T session_listener;
     session_listener.on_state_changed = &on_session_state_changed;
-    session_listener.on_handler_error = nullptr;
+    session_listener.on_handler_error = &on_session_handle_error;
 
     m_rec_strategy.retry_count = 3;
     m_rec_strategy.retry_delay = 1000;
@@ -332,6 +449,73 @@ bool Session::fetch(const std::string& selector)
     return false;
 }
 
+
+bool Session::subscribe(const std::string& selector)
+{
+    // for testing purposes only
+    if (!m_session) {
+        m_fetch_in_progress = true;
+        for (int i = 0; i < 100; ++i) {
+          m_topics.emplace_back("TOPIC_LOAD",
+                                gen_random(40), nullptr, 0);
+        }
+        //onFetchCompleted(nullptr);
+        onFetchError(Error{DIFF_ERR_MESSAGE_LOSS, "Connection failed"});
+        return true;
+    }
+
+    std::lock_guard<std::mutex> lk(m_subscribeMtx);
+    if (m_session  && !m_fetch_in_progress) {
+        SUBSCRIPTION_PARAMS_T params;
+        params.on_subscribe = &on_subscribe;
+        params.on_topic_message = &on_subscribe_topic_message;
+        params.topic_selector = selector.c_str();
+        params.on_error = &on_subscribe_error;
+        params.on_discard = &on_subscribe_discard;
+        params.context = this;
+        m_selector = selector;
+        //m_fetchStatus = Error{DIFF_ERR_SUCCESS, std::string()};
+        m_subscribe_in_progress = true;
+        spdlog::debug("request subscribe on selector {}", selector);
+        ::subscribe(m_session, params);
+        return true;
+    } else {
+        spdlog::warn("fetch started without connection or when fetch in progress");
+    }
+
+    return false;
+}
+
+bool Session::unsubscribe(const std::string& selector) {
+    if (m_session) {
+        ::unsubscribe(m_session, (UNSUBSCRIPTION_PARAMS_T){
+                                     .on_unsubscribe = on_unsubscribe,
+                                     .on_error = on_unsubscribe_error,
+                                     .on_discard = on_unsubscribe_discard,
+                                 .topic_selector = selector.c_str()});
+        return true;
+    }
+
+    return false;
+}
+
+bool Session::notify() {
+    if (m_session) {
+        notify_subscription_register(
+            m_session, (NOTIFY_SUBSCRIPTION_PARAMS_T){
+                         .on_notify_subscription = on_notify_subscription,
+                       .context = this});
+        notify_unsubscription_register(
+            m_session, (NOTIFY_UNSUBSCRIPTION_PARAMS_T){
+                         .on_notify_unsubscription = on_notify_unsubscription,
+                        .context = this});
+        return true;
+    }
+
+    return false;
+}
+
+
 void Session::onFetchTopic(Topic&& t) {
   std::lock_guard<std::mutex> lk(m_fetchMtx);
   m_topics.push_back(std::move(t));
@@ -364,4 +548,35 @@ void Session::setFetchCompletedCallback(FetchCompleted&& fc) {
 
 void Session::setFetchErrorCallback(FetchError&& fe) {
     m_fetch_error_callback = std::move(fe);
+}
+
+void Session::setOnTopicSubscriptionEvent(TopicSubscriptionEvent&& tse) {
+    m_topic_subscription_event = std::move(tse);
+}
+
+void Session::onTopicSubscriptionEvent(SubscriptionNotification&& ts) {
+    m_topic_subscription_events.push_back(std::move(ts));
+    if (m_topic_subscription_event) {
+      m_topic_subscription_event();
+    }
+}
+
+void Session::onSubscribeTopic(Topic&& t) {
+    std::lock_guard<std::mutex> lk(m_subscribeMtx);
+    m_subscrube_topics.push_back(std::move(t));
+    if (!m_subscribe_in_progress && m_subscribe_completed_callback) {
+      m_subscribe_completed_callback(); // call to append new elements
+    }
+}
+
+void Session::onSubscribeCompleted() {
+    std::lock_guard<std::mutex> lk(m_subscribeMtx);
+    m_subscribe_in_progress = false;
+    if (m_subscribe_completed_callback) {
+      m_subscribe_completed_callback();
+    }
+}
+
+void Session::setSubscribeCompletedCallback(SubscribeCompleted&& cb) {
+    m_subscribe_completed_callback = std::move(cb);
 }

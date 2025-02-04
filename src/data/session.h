@@ -14,6 +14,42 @@
 
 std::string error2Str(ERROR_CODE_T ec);
 
+enum SubscriptionReason : int {
+  REASON_SUBSCRIBE = 100500,
+  REASON_REQUESTED = 0,
+  /// The unsubscription was requested either by another client
+  /// or by the server.
+  REASON_CONTROL = 1,
+  /// The unsubscription occurred because the topic was removed.
+  REASON_REMOVAL = 2,
+  /// The unsubscription occurred because the session is no longer
+  /// authorized to access the topic.
+  REASON_AUTHORIZATION = 3,
+  /**
+       * The server has re-subscribed this session to the topic. Existing
+       * streams are unsubscribed because the topic type and other
+       * attributes may have changed.
+       *
+       * <p>
+       * This can happen if a set of servers is configured to use session
+       * replication, and a session connected to one server reconnects
+       * ("fails over") to a different server.
+       *
+       * <p>
+       * A stream that receives an unsubscription notification with this
+       * reason will also receive a subscription notification with the new
+       * {@link TOPIC_DETAILS_T topic details}.
+   */
+  REASON_SUBSCRIPTION_REFRESH = 4,
+  /**
+       * A fallback stream has been unsubscribed due to the addition of a
+       * stream that selects the topic. (Not currently used in the C API).
+   */
+  REASON_STREAM_CHANGE = 5
+};
+
+SubscriptionReason transformReason(NOTIFY_UNSUBSCRIPTION_REASON_T r);
+
 struct Error {
   ERROR_CODE_T m_code{DIFF_ERR_SUCCESS};
   std::string m_message;
@@ -29,10 +65,19 @@ struct Topic {
   Topic(Topic&&) = default;
 };
 
+struct SubscriptionNotification {
+  unsigned int m_id;
+  std::string m_path;
+  SubscriptionReason m_reason;
+};
+
 class Session {
 public:
   using FetchCompleted = std::function<void()>;
   using FetchError = std::function<void(Error)>;
+  using TopicSubscriptionEvent = std::function<void()>;
+
+  using SubscribeCompleted = std::function<void()>;
 
   static Session& getSession();
 
@@ -58,6 +103,7 @@ public:
   void onFetchCompleted(void*);
   void setFetchCompletedCallback(FetchCompleted&&);
   void setFetchErrorCallback(FetchError&&);
+
   const std::vector<Topic>& getFetchedTopics() const {
     return m_topics;
   }
@@ -72,6 +118,23 @@ public:
     return m_fetch_in_progress;
   }
 
+  bool subscribe(const std::string& selector);
+  bool unsubscribe(const std::string& selector);
+  bool notify();
+
+
+  const std::vector<Topic>& getSubscribedTopics() const {
+    return m_subscrube_topics;
+  }
+
+  void onSubscribeTopic(Topic&&);
+  void onSubscribeCompleted();
+  void setSubscribeCompletedCallback(SubscribeCompleted&&);
+
+
+  void setOnTopicSubscriptionEvent(TopicSubscriptionEvent&&);
+  void onTopicSubscriptionEvent(SubscriptionNotification&&);
+
   ~Session();
   Session(const Session&) = delete;
   Session& operator=(const Session) = delete;
@@ -82,12 +145,18 @@ public:
   SESSION_T* m_session;
   CREDENTIALS_T *m_credentials;
   std::vector<Topic> m_topics;
+  std::vector<Topic> m_subscrube_topics;
   FetchCompleted m_fetch_completed_callback;
   FetchError  m_fetch_error_callback;
   std::mutex m_fetchMtx;
+  std::mutex m_subscribeMtx;
   bool m_fetch_in_progress;
+  bool m_subscribe_in_progress;
   Error m_fetchStatus;
   std::string m_selector;
+  TopicSubscriptionEvent m_topic_subscription_event;
+  std::vector<SubscriptionNotification> m_topic_subscription_events;
+  SubscribeCompleted m_subscribe_completed_callback;
 };
 
 #endif //DMON_SESSION_H

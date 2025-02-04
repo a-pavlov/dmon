@@ -3,7 +3,6 @@
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/component/component.hpp>
 #include <ftxui/screen/string.hpp>
-#include <set>
 #include "data/session.h"
 
 using namespace ftxui;
@@ -25,14 +24,23 @@ MainComponent::MainComponent(Session& session, Animator& animator, Closure&& scr
               Container::Vertical({
                   Container::Horizontal({
                       container_search_selector_,
-                                           m_btn_search_,
+                      m_btn_search_,
                       m_btn_clear_
                   }),
                     m_error_report,
                   log_displayer_1_, m_payload_text_box_,
                   m_btn_copy_
               }),
-              log_displayer_2_,
+              Container::Vertical({
+                  Container::Horizontal({
+                      m_subscribe_selector_,
+                      m_btn_subscribe_//,
+                      //m_btn_clear_
+                  }),
+                  //m_error_report,
+                  log_displayer_2_//, m_payload_text_box_,
+                  //m_btn_copy_
+              }),
               info_component_,
           },
           &tab_selected_),
@@ -113,8 +121,21 @@ Element MainComponent::Render() {
     return  //
         vbox({
             header,
-            log_displayer_2_->RenderLines(dummy) | flex_shrink,
-            filler(),
+            separator(),
+            window(text(L"Subscribe"), hbox(text("Enter path:"), separator(), m_subscribe_selector_->Render(), m_btn_subscribe_->Render()) | notflex),
+            //m_error_report->Render(),
+
+            /*hbox({
+                window(text(L"Type"), container_level_filter_->Render()) |
+                    notflex,
+                text(L" "),
+                window(text(L"Filter"), hbox(thread_filter_document)) | notflex,
+                text(L" ")
+                //window(text(L"Selector"), hbox(container_search_selector_->Render(), m_btn_search_->Render())) | flex,
+                //filler(),
+            }) | notflex,*/
+            log_displayer_2_->RenderLines(m_session.getSubscribedTopics()) | flex_shrink,
+            //window(text("Content"), hbox(m_payload_text_box_->Render() | size(ftxui::HEIGHT, ftxui::EQUAL, 10) | xflex_grow, vbox(m_btn_copy_->Render())))
         });
   }
 

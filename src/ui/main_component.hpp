@@ -129,7 +129,11 @@ class MainComponent : public ComponentBase {
   Component m_btn_exit_ = Button("Exit", m_screen_exit_, ButtonOption::Ascii());
   Component m_btn_copy_ = Button("Copy", [&](){
         spdlog::debug("Copy to clipboard: {}", m_current_payload);
-        clip::set_text(m_current_payload);
+        if (!clip::set_text(m_current_payload)) {
+          spdlog::debug("Copy to clipboard failed");
+        }else {
+          spdlog::debug("Copied!!!");
+        }
       }, ButtonOption::Ascii());
   Component m_btn_clear_ = Button("Clear", [&](){
         m_search_selector.clear();
@@ -143,6 +147,26 @@ class MainComponent : public ComponentBase {
                                                  separator(),
                                                  spinner(18, m_spinner_indx)));
   }) | Maybe([&] { return m_session.isFetchInProgress() || m_session.getLastFetchStatus().m_code != DIFF_ERR_SUCCESS; });
+
+
+
+  std::string m_subscribe_selector;
+  Component m_subscribe_selector_ = Input(&m_subscribe_selector, "", InputOption{.multiline=false, .on_change=[&](){
+                                                                                   }, .on_enter = [&](){
+                                                                                     if (!m_subscribe_selector.empty() && m_session.subscribe(m_subscribe_selector)) {
+                                                                                       log_displayer_2_->clearSelected();
+                                                                                       //m_spinner_indx = 0;
+                                                                                       //m_animator.start();
+                                                                                     }
+                                                                                   }});
+
+  Component m_btn_subscribe_ = Button("Subscribe", [&]{
+        if (!m_subscribe_selector.empty() && m_session.subscribe(m_subscribe_selector)) {
+          log_displayer_2_->clearSelected();
+          //m_spinner_indx = 0;
+          //m_animator.start();
+        }
+      }, ButtonOption::Ascii());
 
   Session& m_session;
   size_t m_spinner_indx{0};

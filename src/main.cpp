@@ -70,6 +70,7 @@ int main(int argc, char** argv) {
   try
   {
     auto logger = spdlog::basic_logger_mt("basic_logger", "logs/infolog.txt", true);
+    logger->flush_on(spdlog::level::debug);
     spdlog::set_default_logger(logger);
   }
   catch (const spdlog::spdlog_ex &ex)
@@ -79,6 +80,17 @@ int main(int argc, char** argv) {
   }
 
   spdlog::set_level(spdlog::level::debug);
+
+
+  /*int fd = open("output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fd == -1) {
+    perror("Failed to open output file");
+    return 1;
+  }
+
+  dup2(fd, STDOUT_FILENO);
+  close(fd);*/
+
 
   /*
     * Standard command-line parsing.
@@ -136,6 +148,12 @@ int main(int argc, char** argv) {
     animator.stop();
     screen.PostEvent(Event::Special("fetch"));
   });
+
+  session.setSubscribeCompletedCallback([&screen]() {
+    screen.PostEvent(Event::Special("subscribe"));
+  });
+
+  session.notify();
 
   //std::atomic<bool> exit{false};
 
