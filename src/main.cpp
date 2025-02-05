@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
     //const char* selector = static_cast<const char*>(hash_get(options,"selector"));
 
     spdlog::info("application has started url {} principal {} password {}", url, principal, reconnect_timeout);
-    auto& session = Session::getSession();
+    Session session;
     Error e;
     if (!session.connect(url, principal, password, e)) {
       spdlog::warn("Connection error {} message {}", error2Str(e.m_code), e.m_message);

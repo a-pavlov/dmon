@@ -177,17 +177,20 @@ static void on_session_handle_error() {
 
 // ============== FETCH
 
+#define SES Session* ses = static_cast<Session*>(session->user_context);
+
 static int on_fetch(SESSION_T *session, void *context) {
     spdlog::debug("session {} fetch completed", getSessionIdAsString(session->id));
-    Session::getSession().onFetchCompleted(context);
+    SES
+    ses->onFetchCompleted(context);
     return HANDLER_SUCCESS;
 }
 
 static int on_topic(struct session_s *session, const TOPIC_MESSAGE_T *message) {
     if (message) {
         spdlog::debug("session {} fetch topic {}", getSessionIdAsString(session->id), message->name);
-        auto& s = Session::getSession();
-        s.onFetchTopic(Topic(topicType2Str(message->type), message->name,
+        SES
+        ses->onFetchTopic(Topic(topicType2Str(message->type), message->name,
                              message->payload->data, message->payload->len));
         return HANDLER_SUCCESS;
     } else {
@@ -199,8 +202,8 @@ static int on_topic(struct session_s *session, const TOPIC_MESSAGE_T *message) {
 static int on_fetch_error(SESSION_T * session, const DIFFUSION_ERROR_T *error) {
     if (error != nullptr) {
         spdlog::warn("session {} fetch topic error {} message {}", getSessionIdAsString(session->id), error2Str(error->code), error->message);
-        Session::getSession().onFetchError(
-            Error{error->code, std::string(error->message)});
+        SES
+        ses->onFetchError(Error{error->code, std::string(error->message)});
         return HANDLER_SUCCESS;
     }
 
@@ -239,9 +242,8 @@ static int on_subscribe_topic_message(SESSION_T *session, const TOPIC_MESSAGE_T 
 {
     if (message) {
         spdlog::debug("session {} fetch topic {}", getSessionIdAsString(session->id), message->name);
-        auto& s = Session::getSession();
-        s.onSubscribeTopic(Topic(topicType2Str(message->type), message->name,
-                             message->payload->data, message->payload->len));
+        SES
+        ses->onSubscribeTopic(Topic(topicType2Str(message->type), message->name, message->payload->data, message->payload->len));
         return HANDLER_SUCCESS;
     } else {
         spdlog::warn("session {} fetch topic without message", getSessionIdAsString(session->id));
@@ -310,8 +312,8 @@ static int on_notify_unsubscription(SESSION_T *session, const SVC_NOTIFY_UNSUBSC
 static int on_subscribe_error(SESSION_T * session, const DIFFUSION_ERROR_T *error) {
     if (error != nullptr) {
         spdlog::warn("session {} fetch topic error {} message {}", getSessionIdAsString(session->id), error2Str(error->code), error->message);
-        Session::getSession().onFetchError(
-            Error{error->code, std::string(error->message)});
+        SES
+        ses->onFetchError(Error{error->code, std::string(error->message)});
         return HANDLER_SUCCESS;
     }
 
@@ -340,8 +342,8 @@ static int on_unsubscribe(SESSION_T *session, void *context_data)
 static int on_unsubscribe_error(SESSION_T * session, const DIFFUSION_ERROR_T *error) {
     if (error != nullptr) {
         spdlog::warn("session {} unsubscribe error {} message {}", getSessionIdAsString(session->id), error2Str(error->code), error->message);
-        Session::getSession().onFetchError(
-            Error{error->code, std::string(error->message)});
+        SES
+        ses->onFetchError(Error{error->code, std::string(error->message)});
         return HANDLER_SUCCESS;
     }
 
@@ -353,11 +355,11 @@ static int on_unsubscribe_discard(struct session_s *session, void *context)
     spdlog::warn("session {} unsubscribe discard", getSessionIdAsString(session->id));
     return HANDLER_SUCCESS;
 }
-
+/*
 Session& Session::getSession() {
     static Session ses;
     return ses;
-}
+}*/
 
 Session::Session() : m_session(nullptr)
       , m_fetch_completed_callback(nullptr)
@@ -402,8 +404,7 @@ bool Session::connect(const std::string& url, const std::string& principal, cons
 
     auto session = session_create(m_url.c_str(), m_principal.c_str(), m_credentials, &session_listener, &m_rec_strategy, &error);
     if(session != nullptr) {
-        auto& s = getSession();
-        s.m_session = session;
+        m_session = session;
         /*char *sid_str = session_id_to_string(session->id);
         printf("Session created (state=%d, id=%s)\n",
                session_state_get(session),
@@ -418,7 +419,7 @@ bool Session::connect(const std::string& url, const std::string& principal, cons
         free(error.message);
     }
 
-    return getSession().m_session != nullptr;
+    return m_session != nullptr;
 }
 
 bool Session::fetch(const std::string& selector)

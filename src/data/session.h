@@ -76,10 +76,7 @@ public:
   using FetchCompleted = std::function<void()>;
   using FetchError = std::function<void(Error)>;
   using TopicSubscriptionEvent = std::function<void()>;
-
   using SubscribeCompleted = std::function<void()>;
-
-  static Session& getSession();
 
   Session();
 
