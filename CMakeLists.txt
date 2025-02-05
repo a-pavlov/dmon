@@ -67,6 +67,10 @@ set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL 1.0.0 REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
 
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+find_package(Boost COMPONENTS system REQUIRED)
+
 add_executable(dmon
         src/main.cpp
   src/ui/log_displayer.cpp
@@ -119,6 +123,9 @@ target_link_libraries(dmon
   PRIVATE ftxui::component
   PRIVATE spdlog::spdlog
   PRIVATE clip
+  #PRIVATE apr-1
+  #PRIVATE Boost::system
+
 )
 
 set_target_properties(dmon PROPERTIES CXX_STANDARD 17)

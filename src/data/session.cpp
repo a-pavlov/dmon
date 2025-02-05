@@ -265,12 +265,20 @@ static int on_subscribe(SESSION_T *session, void *context) {
  * a topic of their choice at any time. We register this callback to capture
  * messages from these topics and display them.
  */
-/*static int on_unexpected_topic_message(SESSION_T *session, const TOPIC_MESSAGE_T *msg)
+static int on_unexpected_topic_message(SESSION_T *session, const TOPIC_MESSAGE_T *msg)
 {
-    printf("Received a message for a topic we didn't subscribe to (%s)\n", msg->name);
-    printf("Payload: %.*s\n", (int)msg->payload->len, msg->payload->data);
+    spdlog::debug("session {} unexpected topic {} payload length {}", getSessionIdAsString(session->id), msg->name, msg->payload->len);
     return HANDLER_SUCCESS;
-}*/
+}
+
+static int on_global_error(SESSION_T * session, const DIFFUSION_ERROR_T *error) {
+    if (error != nullptr) {
+        spdlog::warn("session {} global error {} message {}", getSessionIdAsString(session->id), error2Str(error->code), error->message);
+        return HANDLER_SUCCESS;
+    }
+
+    return HANDLER_FAILURE;
+}
 
 /*
  * We use this callback when Diffusion notifies us that we've been subscribed
@@ -401,6 +409,9 @@ bool Session::connect(const std::string& url, const std::string& principal, cons
                session_state_get(session),
                sid_str);
         free(sid_str);*/
+        session->global_topic_handler = on_unexpected_topic_message;
+        session->global_service_error_handler = on_global_error;
+        session->user_context = this;
     }
     else {
         e = Error{error.code, error.message};
