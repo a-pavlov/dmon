@@ -67,7 +67,7 @@ Element LogDisplayer::RenderLines(const std::vector<Topic>& topics) {
       list.push_back(separator());
     previous_type = it.m_topic_type;
 
-    LogStyle ls = ((index % 2) == 0)?LogStyle{color(Color::GrayLight), dim}:LogStyle{color(Color::GrayDark), dim};
+    LogStyle ls = ((index % 2) == 0)?LogStyle{color(Color::Green), dim}:LogStyle{color(Color::Yellow), dim};
     Decorator line_decorator =  ls.level_decorator;//log_style[it->level].line_decorator;
     Decorator level_decorator = nothing; //log_style[it->level].level_decorator;
 

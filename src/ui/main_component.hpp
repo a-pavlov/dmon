@@ -10,7 +10,6 @@
 #include <map>
 
 #include "ui/log_displayer.hpp"
-#include "ui/info_component.hpp"
 
 #include "data/session.h"
 #include "spdlog/spdlog.h"
@@ -110,10 +109,10 @@ class MainComponent : public ComponentBase {
   std::string m_subscribe_payload;
 
   int tab_selected_ = 0;
-  std::vector<std::wstring> tab_entries_ = {
-      L"Search",
-      L"Subscription",
-      L"Info",
+  std::vector<std::string> tab_entries_ = {
+      "Search",
+      "Subscription",
+      "Quit"
   };
 
   std::vector<Topic> m_topics;
@@ -126,7 +125,6 @@ class MainComponent : public ComponentBase {
   Component container_thread_filter_ = Container::Horizontal({});
   std::shared_ptr<LogDisplayer> log_displayer_1_;
   std::shared_ptr<LogDisplayer> log_displayer_2_;
-  Component info_component_ = Make<InfoComponent>();
   Component container_search_selector_ = Input(&m_search_selector, "", InputOption{.multiline=false, .on_change=[&](){
   }, .on_enter = [&](){
     if (!m_search_selector.empty() && m_session.fetch(m_search_selector)) {
@@ -141,7 +139,7 @@ class MainComponent : public ComponentBase {
         }
       }, ButtonOption::Ascii());
   Component m_payload_text_box_ = Input(&m_current_payload, InputOption{.multiline = true});
-  Component m_btn_exit_ = Button("Exit", m_screen_exit_, ButtonOption::Ascii());
+  Component m_btn_exit_ = Button("Close application", m_screen_exit_, ButtonOption::Ascii());
   Component m_btn_copy_ = Button("Copy", [&](){
         spdlog::debug("Copy to clipboard: {}", m_current_payload);
         if (!clip::set_text(m_current_payload)) {

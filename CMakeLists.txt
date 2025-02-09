@@ -77,8 +77,6 @@ add_executable(dmon
   src/ui/log_displayer.hpp
   src/ui/main_component.cpp
   src/ui/main_component.hpp
-  src/ui/info_component.hpp
-  gen/ui/info_component.cpp
   src/data/session.h
   src/data/session.cpp
 )
@@ -103,10 +101,6 @@ execute_process(
 )
 
 string(TIMESTAMP today "%Y-%m-%d ")
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/info_component.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/gen/ui/info_component.cpp
-)
 
 target_include_directories(dmon
   PRIVATE src

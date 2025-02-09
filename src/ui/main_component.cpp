@@ -13,7 +13,6 @@ MainComponent::MainComponent(Session& session, Closure&& screen_exit)
       log_displayer_1_(Make<LogDisplayer>()),
       log_displayer_2_(Make<LogDisplayer>()),
       m_session(session)
-      //m_animator(animator)
     {
   Add(Container::Vertical({
       toggle_,
@@ -35,15 +34,16 @@ MainComponent::MainComponent(Session& session, Closure&& screen_exit)
                       m_btn_subscribe_//,
                       //m_btn_clear_
                   }),
-                  //m_error_report,
                   m_subsribe_error_report,
-                  log_displayer_2_, m_subscribe_payload_text_box_
+                  log_displayer_2_,
+                  m_subscribe_payload_text_box_
                   //m_btn_copy_
               }),
-              info_component_,
+              m_btn_exit_
           },
-          &tab_selected_),
-       m_btn_exit_}));
+          &tab_selected_)//,
+       //m_btn_exit_
+  }));
 }
 
 bool MainComponent::OnEvent(Event event) {
@@ -74,12 +74,12 @@ Element MainComponent::Render() {
           ->selected();
 
   auto header = hbox({
-      text(L"Diffusion monitor"),
+      hbox(text(m_session.getAddress()) | color(Color::LightGreen)),
       separator(),
       hcenter(toggle_->Render()),
       separator(),
-      m_btn_exit_->Render(),
-      separator(),
+      //m_btn_exit_->Render(),
+      //separator(),
       text(to_wstring(current_line)),
       text(L"/"),
       text(std::to_string(lines_count)),
@@ -145,8 +145,7 @@ Element MainComponent::Render() {
       vbox({
           header,
           separator(),
-          filler(),
-          info_component_->Render() | center,
-          filler(),
+          m_btn_exit_->Render() | center,
+          filler()
       });
 }

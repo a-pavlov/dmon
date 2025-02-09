@@ -85,11 +85,6 @@ public:
     return m_session != nullptr;
   }
 
-  std::string getLastFetchStatusStr()  {
-    std::lock_guard<std::mutex> lk(m_operationMutex);
-    return error2Str(m_fetchStatus.m_code) + ": " + m_fetchStatus.m_message;
-  }
-
   bool connect(const std::string& url, const std::string& principal, const std::string& password, Error&);
   bool fetch(const std::string& selector);
   void onFetchTopic(Topic&&);
@@ -104,6 +99,10 @@ public:
 
   void setSubscribeErrorCallback(ErrorCallback&&);
 
+
+  std::string getAddress() const {
+    return m_principal + "@" + m_url;
+  }
 
   const Error getLastFetchStatus() {
     std::lock_guard<std::mutex> lk(m_operationMutex);
