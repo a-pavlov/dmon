@@ -8,6 +8,7 @@
 #include <ftxui/component/task.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <map>
+#include <list>
 
 #include "ui/log_displayer.hpp"
 
@@ -92,14 +93,21 @@ class MainComponent : public ComponentBase {
   Element Render() override;
   bool OnEvent(Event) override;
 
-  void onFetchCompleted(const std::string& errorMessage, std::vector<Topic>&& topics) {
+  void onFetchCompleted(const std::string& errorMessage, std::vector<Topic>&& topics, std::string&& selector) {
     m_topics = std::move(topics);
     m_fetch_error_message = errorMessage;
+    //container_level_filter_->
   }
 
-  void onSubscribeCompleted(const std::string& errorMessage, std::vector<Topic>&& topics) {
+  void onSubscribeCompleted(const std::string& errorMessage, std::vector<Topic>&& topics, std::string&& selector) {
     std::copy(topics.begin(), topics.end(), std::back_inserter(m_subscribe_topics));
     m_subscribe_error_message = errorMessage;
+    m_sub_bools.push_back(false);
+    spdlog::debug("Subscribe completed {}", selector);
+    if (!selector.empty()) {
+      container_level_filter_->Add(
+          Checkbox(std::move(selector), &m_sub_bools.back()));
+    }
   }
 
  private:
@@ -192,6 +200,7 @@ class MainComponent : public ComponentBase {
   Session& m_session;
   size_t m_spinner_indx{0};
   size_t m_subscribtion_spinner_indx{0};
+  std::list<bool> m_sub_bools;
 };
 
 #endif /* end of include guard: UI_MAIN_COMPONENT_HPP */

@@ -73,11 +73,11 @@ struct SubscriptionNotification {
 
 class Session {
 public:
-  using FetchCompleted = std::function<void()>;
+  using FetchCompleted = std::function<void(std::string&&)>;
   using ErrorCallback = std::function<void(Error)>;
   using FetchStart = std::function<void()>;
   using TopicSubscriptionEvent = std::function<void()>;
-  using SubscribeCompleted = std::function<void()>;
+  using SubscribeCompleted = std::function<void(std::string&&)>;
 
   Session();
 

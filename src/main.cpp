@@ -140,10 +140,10 @@ int main(int argc, char** argv) {
   Animator animator(screen);
   auto component = std::make_shared<MainComponent>(session, screen.ExitLoopClosure());
 
-  session.setFetchCompletedCallback([&screen, &animator, &session, &component]() {
+  session.setFetchCompletedCallback([&screen, &animator, &session, &component](std::string&& selector) {
     animator.stop("fetch");
-    screen.Post([&component, tpx = session.getFetchTopics()]() mutable {
-            component->onFetchCompleted(std::string(), std::move(tpx));
+    screen.Post([&component, tpx = session.getFetchTopics(), sel = std::move(selector)]() mutable {
+            component->onFetchCompleted(std::string(), std::move(tpx), std::move(sel));
           });
     screen.PostEvent(Event::Special("fetch"));
   });
@@ -151,15 +151,15 @@ int main(int argc, char** argv) {
   session.setFetchErrorCallback([&screen, &animator, &component](Error error) {
     animator.stop("fetch");
     screen.Post([&component, error]() mutable {
-      component->onFetchCompleted(error.m_message, std::vector<Topic>());
+      component->onFetchCompleted(error.m_message, std::vector<Topic>(), std::string());
     });
     screen.PostEvent(Event::Special("fetch"));
   });
 
-  session.setFetchDiscardCallback([&screen, &animator, &component]() {
+  session.setFetchDiscardCallback([&screen, &animator, &component](std::string&& selector) {
     animator.stop("fetch");
-    screen.Post([&component]() mutable {
-      component->onFetchCompleted("Discard", std::vector<Topic>());
+    screen.Post([&component, sel = std::move(selector)]() mutable {
+      component->onFetchCompleted("Discard", std::vector<Topic>(), std::move(sel));
     });
     screen.PostEvent(Event::Special("fetch"));
   });
@@ -168,10 +168,10 @@ int main(int argc, char** argv) {
            animator.start("fetch");
   });
 
-  session.setSubscribeCompletedCallback([&screen, &animator, &component, &session]() {
+  session.setSubscribeCompletedCallback([&screen, &animator, &component, &session](std::string&& selector) {
     animator.stop("subscribe");
-    screen.Post([&component, tpx = session.getSubscribeTopics()]() mutable {
-      component->onSubscribeCompleted(std::string(), std::move(tpx));
+    screen.Post([&component, tpx = session.getSubscribeTopics(), sel = std::move(selector)]() mutable {
+      component->onSubscribeCompleted(std::string(), std::move(tpx), std::move(sel));
     });
     screen.PostEvent(Event::Special("subscribe"));
   });
@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
   session.setSubscribeErrorCallback([&screen, &animator, &component](Error error) {
     animator.stop("subscribe");
     screen.Post([&component, error]() mutable {
-      component->onSubscribeCompleted(error.m_message, std::vector<Topic>());
+      component->onSubscribeCompleted(error.m_message, std::vector<Topic>(), std::string());
     });
     screen.PostEvent(Event::Special("subscribe"));
   });

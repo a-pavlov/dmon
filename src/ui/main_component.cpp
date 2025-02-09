@@ -24,8 +24,9 @@ MainComponent::MainComponent(Session& session, Closure&& screen_exit)
                       m_btn_search_,
                       m_btn_clear_
                   }),
-                    m_error_report,
-                  log_displayer_1_, m_payload_text_box_,
+                  m_error_report,
+                  log_displayer_1_,
+                  m_payload_text_box_,
                   m_btn_copy_
               }),
               Container::Vertical({
@@ -35,6 +36,7 @@ MainComponent::MainComponent(Session& session, Closure&& screen_exit)
                       //m_btn_clear_
                   }),
                   m_subsribe_error_report,
+                  container_level_filter_,
                   log_displayer_2_,
                   m_subscribe_payload_text_box_
                   //m_btn_copy_
@@ -44,6 +46,7 @@ MainComponent::MainComponent(Session& session, Closure&& screen_exit)
           &tab_selected_)//,
        //m_btn_exit_
   }));
+
 }
 
 bool MainComponent::OnEvent(Event event) {
@@ -94,6 +97,29 @@ Element MainComponent::Render() {
       //spinner(18, m_spinner_indx),
   });
 
+  std::vector<std::string> thread_filters_order_{"111", "2222", "3333"};
+
+  Elements thread_filter_document;
+  thread_filter_document.push_back(vbox({
+      text(L"Process:") | bold,
+      separator(),
+      text(L"Thread:") | bold,
+      filler()
+  }));
+
+  for (auto key : thread_filters_order_) {
+    Elements checkboxes;
+    std::string c = key;
+    std::string c_str;
+    c_str += c;
+    checkboxes.push_back(text(c_str));
+    checkboxes.push_back(separator());
+    //checkboxes.push_back(thread_filters_[key]->container->Render());
+    thread_filter_document.push_back(separator());
+    thread_filter_document.push_back(vbox(checkboxes));
+  }
+
+
   Element tab_menu;
   if (tab_selected_ == 0) {
     return  //
@@ -126,6 +152,7 @@ Element MainComponent::Render() {
             separator(),
             window(text(L"Subscribe"), hbox(text("Enter path:"), separator(), m_subscribe_selector_->Render(), m_btn_subscribe_->Render()) | notflex),
             m_subsribe_error_report->Render(),
+            window(text(L"Subscriptions"), container_level_filter_->Render()) | notflex,
 
             /*hbox({
                 window(text(L"Type"), container_level_filter_->Render()) |

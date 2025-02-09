@@ -452,6 +452,7 @@ bool Session::fetch(const std::string& selector)
         m_fetchStatus = Error{DIFF_ERR_SUCCESS, std::string()};
         m_fetch_in_progress = true;
         m_topics.clear();
+        m_selector = selector;
         spdlog::debug("request fetch on selector {}", selector);
         if (m_fetch_start_callback) {
           m_fetch_start_callback();
@@ -489,6 +490,7 @@ bool Session::subscribe(const std::string& selector)
         params.on_error = &on_subscribe_error;
         params.on_discard = &on_subscribe_discard;
         params.context = this;
+        m_selector = selector;
         m_subscribe_in_progress = true;
         if (m_subscribe_start_callback) {
           m_subscribe_start_callback();
@@ -550,23 +552,29 @@ void Session::onFetchError(Error error) {
 }
 
 void Session::onFetchDiscard() {
+  std::string sel;
   {
     std::lock_guard<std::mutex> lk(m_operationMutex);
     m_fetchStatus = Error{.m_code = DIFF_ERR_SUCCESS, .m_message = "Discarded"};
     m_fetch_in_progress = false;
+    sel = std::move(m_selector);
+    m_selector.clear();
   }
   if (m_fetch_discard_callback) {
-    m_fetch_discard_callback();
+    m_fetch_discard_callback(std::move(sel));
   }
 }
 
 void Session::onFetchCompleted(void*) {
+  std::string sel;
   {
     std::lock_guard<std::mutex> lk(m_operationMutex);
     m_fetch_in_progress = false;
+    sel = std::move(m_selector);
+    m_selector.clear();
   }
   if (m_fetch_completed_callback) {
-      m_fetch_completed_callback();
+      m_fetch_completed_callback(std::move(sel));
   }
 }
 
@@ -604,22 +612,28 @@ void Session::onTopicSubscriptionEvent(SubscriptionNotification&& ts) {
 }
 
 void Session::onSubscribeTopic(Topic&& t) {
+    std::string sel;
     {
       std::lock_guard<std::mutex> lk(m_operationMutex);
       m_subscrube_topics.push_back(std::move(t));
+      //sel = std::move(m_selector);
+      //m_selector.clear();
     }
     if (!isSubscribtionInProgress() && m_subscribe_completed_callback) {
-      m_subscribe_completed_callback(); // call to append new elements
+      m_subscribe_completed_callback(std::move(sel)); // call to append new elements
     }
 }
 
 void Session::onSubscribeCompleted() {
+    std::string sel;
     {
       std::lock_guard<std::mutex> lk(m_operationMutex);
       m_subscribe_in_progress = false;
+      sel = std::move(m_selector);
+      m_selector.clear();
     }
     if (m_subscribe_completed_callback) {
-      m_subscribe_completed_callback();
+      m_subscribe_completed_callback(std::move(sel));
     }
 }
 
