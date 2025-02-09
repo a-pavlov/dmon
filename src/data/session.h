@@ -74,7 +74,8 @@ struct SubscriptionNotification {
 class Session {
 public:
   using FetchCompleted = std::function<void()>;
-  using FetchError = std::function<void(Error)>;
+  using ErrorCallback = std::function<void(Error)>;
+  using FetchStart = std::function<void()>;
   using TopicSubscriptionEvent = std::function<void()>;
   using SubscribeCompleted = std::function<void()>;
 
@@ -84,12 +85,8 @@ public:
     return m_session != nullptr;
   }
 
-  std::string getSelector() const {
-    return m_selector;
-  }
-
   std::string getLastFetchStatusStr()  {
-    std::lock_guard<std::mutex> lk(m_fetchMtx);
+    std::lock_guard<std::mutex> lk(m_operationMutex);
     return error2Str(m_fetchStatus.m_code) + ": " + m_fetchStatus.m_message;
   }
 
@@ -97,21 +94,24 @@ public:
   bool fetch(const std::string& selector);
   void onFetchTopic(Topic&&);
   void onFetchError(Error error);
+  void onFetchDiscard();
+  void onSubscribeError(Error error);
   void onFetchCompleted(void*);
   void setFetchCompletedCallback(FetchCompleted&&);
-  void setFetchErrorCallback(FetchError&&);
+  void setFetchErrorCallback(ErrorCallback&&);
+  void setFetchDiscardCallback(FetchCompleted&&);
+  void setFetchStartCallback(FetchStart&&);
 
-  const std::vector<Topic>& getFetchedTopics() const {
-    return m_topics;
-  }
+  void setSubscribeErrorCallback(ErrorCallback&&);
+
 
   const Error getLastFetchStatus() {
-    std::lock_guard<std::mutex> lk(m_fetchMtx);
+    std::lock_guard<std::mutex> lk(m_operationMutex);
     return m_fetchStatus;
   }
 
   bool isFetchInProgress() {
-    std::lock_guard<std::mutex> lk(m_fetchMtx);
+    std::lock_guard<std::mutex> lk(m_operationMutex);
     return m_fetch_in_progress;
   }
 
@@ -120,17 +120,31 @@ public:
   bool notify();
 
 
-  const std::vector<Topic>& getSubscribedTopics() const {
-    return m_subscrube_topics;
+  std::vector<Topic> getSubscribeTopics() {
+    std::lock_guard<std::mutex> lk(m_operationMutex);
+    return std::move(m_subscrube_topics);
+  }
+
+  std::vector<Topic> getFetchTopics() {
+    std::lock_guard<std::mutex> lk(m_operationMutex);
+    return std::move(m_topics);
+  }
+
+  void setSubscribeStartCallback(std::function<void()>&& ssc) {
+    m_subscribe_start_callback = std::move(ssc);
   }
 
   void onSubscribeTopic(Topic&&);
   void onSubscribeCompleted();
   void setSubscribeCompletedCallback(SubscribeCompleted&&);
 
-
   void setOnTopicSubscriptionEvent(TopicSubscriptionEvent&&);
   void onTopicSubscriptionEvent(SubscriptionNotification&&);
+
+  bool isSubscribtionInProgress() {
+    std::lock_guard<std::mutex> lk(m_operationMutex);
+    return m_subscribe_in_progress;
+  }
 
   ~Session();
   Session(const Session&) = delete;
@@ -144,16 +158,20 @@ public:
   std::vector<Topic> m_topics;
   std::vector<Topic> m_subscrube_topics;
   FetchCompleted m_fetch_completed_callback;
-  FetchError  m_fetch_error_callback;
-  std::mutex m_fetchMtx;
-  std::mutex m_subscribeMtx;
+  ErrorCallback m_fetch_error_callback;
+  ErrorCallback m_subscribe_error_callback;
+  FetchStart m_fetch_start_callback;
+  FetchCompleted m_fetch_discard_callback;
+  std::mutex m_operationMutex;
   bool m_fetch_in_progress;
   bool m_subscribe_in_progress;
   Error m_fetchStatus;
+  Error m_subscribeStatus;
   std::string m_selector;
   TopicSubscriptionEvent m_topic_subscription_event;
   std::vector<SubscriptionNotification> m_topic_subscription_events;
   SubscribeCompleted m_subscribe_completed_callback;
+  std::function<void()> m_subscribe_start_callback;
 };
 
 #endif //DMON_SESSION_H

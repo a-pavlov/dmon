@@ -138,26 +138,59 @@ int main(int argc, char** argv) {
 
   auto screen = ScreenInteractive::Fullscreen();
   Animator animator(screen);
+  auto component = std::make_shared<MainComponent>(session, screen.ExitLoopClosure());
 
-  session.setFetchCompletedCallback([&screen, &animator]() {
-    animator.stop();
+  session.setFetchCompletedCallback([&screen, &animator, &session, &component]() {
+    animator.stop("fetch");
+    screen.Post([&component, tpx = session.getFetchTopics()]() mutable {
+            component->onFetchCompleted(std::string(), std::move(tpx));
+          });
     screen.PostEvent(Event::Special("fetch"));
   });
 
-  session.setFetchErrorCallback([&screen, &animator](Error error) {
-    animator.stop();
+  session.setFetchErrorCallback([&screen, &animator, &component](Error error) {
+    animator.stop("fetch");
+    screen.Post([&component, error]() mutable {
+      component->onFetchCompleted(error.m_message, std::vector<Topic>());
+    });
     screen.PostEvent(Event::Special("fetch"));
   });
 
-  session.setSubscribeCompletedCallback([&screen]() {
+  session.setFetchDiscardCallback([&screen, &animator, &component]() {
+    animator.stop("fetch");
+    screen.Post([&component]() mutable {
+      component->onFetchCompleted("Discard", std::vector<Topic>());
+    });
+    screen.PostEvent(Event::Special("fetch"));
+  });
+
+  session.setFetchStartCallback([&animator]() {
+           animator.start("fetch");
+  });
+
+  session.setSubscribeCompletedCallback([&screen, &animator, &component, &session]() {
+    animator.stop("subscribe");
+    screen.Post([&component, tpx = session.getSubscribeTopics()]() mutable {
+      component->onSubscribeCompleted(std::string(), std::move(tpx));
+    });
+    screen.PostEvent(Event::Special("subscribe"));
+  });
+
+  session.setSubscribeStartCallback([&animator](){
+    animator.start("subscribe");
+  });
+
+  session.setSubscribeErrorCallback([&screen, &animator, &component](Error error) {
+    animator.stop("subscribe");
+    screen.Post([&component, error]() mutable {
+      component->onSubscribeCompleted(error.m_message, std::vector<Topic>());
+    });
     screen.PostEvent(Event::Special("subscribe"));
   });
 
   session.notify();
 
   //std::atomic<bool> exit{false};
-
-  auto component = std::make_shared<MainComponent>(session, animator, screen.ExitLoopClosure());
 
   /*std::thread producer = std::thread([&exit, &screen](){
     int counter{0};

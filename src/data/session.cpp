@@ -230,6 +230,8 @@ static int on_fetch_status_message(SESSION_T *session,
 static int on_fetch_discard(struct session_s *session, void *context)
 {
     spdlog::warn("session {} fetch discard", getSessionIdAsString(session->id));
+    SES
+    ses->onFetchDiscard();
     return HANDLER_SUCCESS;
 }
 
@@ -313,7 +315,7 @@ static int on_subscribe_error(SESSION_T * session, const DIFFUSION_ERROR_T *erro
     if (error != nullptr) {
         spdlog::warn("session {} fetch topic error {} message {}", getSessionIdAsString(session->id), error2Str(error->code), error->message);
         SES
-        ses->onFetchError(Error{error->code, std::string(error->message)});
+        ses->onSubscribeError(Error{error->code, std::string(error->message)});
         return HANDLER_SUCCESS;
     }
 
@@ -372,15 +374,19 @@ Session::Session() : m_session(nullptr)
 
 Session::~Session()
 {
+    spdlog::info("close session handler");
+
+    if (m_credentials) {
+        spdlog::info("close session {} free credentials", getSessionIdAsString(m_session->id));
+        credentials_free(m_credentials);
+    }
+
     if (m_session) {
+        spdlog::info("close session {}", getSessionIdAsString(m_session->id));
         DIFFUSION_ERROR_T error;
         memset(&error, 0, sizeof(error));
         session_close(m_session, &error);
         session_free(m_session);
-    }
-
-    if (m_credentials) {
-        credentials_free(m_credentials);
     }
 }
 
@@ -405,17 +411,14 @@ bool Session::connect(const std::string& url, const std::string& principal, cons
     auto session = session_create(m_url.c_str(), m_principal.c_str(), m_credentials, &session_listener, &m_rec_strategy, &error);
     if(session != nullptr) {
         m_session = session;
-        /*char *sid_str = session_id_to_string(session->id);
-        printf("Session created (state=%d, id=%s)\n",
-               session_state_get(session),
-               sid_str);
-        free(sid_str);*/
         session->global_topic_handler = on_unexpected_topic_message;
         session->global_service_error_handler = on_global_error;
         session->user_context = this;
+        spdlog::info("session connected {}", getSessionIdAsString(session->id));
     }
     else {
         e = Error{error.code, error.message};
+        spdlog::error("session connection error code {} message {}", error2Str(error.code), error.message);
         free(error.message);
     }
 
@@ -436,7 +439,7 @@ bool Session::fetch(const std::string& selector)
         return true;
     }
 
-    std::lock_guard<std::mutex> lk(m_fetchMtx);
+    std::lock_guard<std::mutex> lk(m_operationMutex);
     if (m_session  && !m_fetch_in_progress) {
         FETCH_PARAMS_T params;
         params.on_fetch = &on_fetch;
@@ -446,12 +449,13 @@ bool Session::fetch(const std::string& selector)
         params.on_status_message = &on_fetch_status_message;
         params.on_discard = &on_fetch_discard;
         params.context = this;
-        m_selector = selector;
         m_fetchStatus = Error{DIFF_ERR_SUCCESS, std::string()};
         m_fetch_in_progress = true;
-
         m_topics.clear();
         spdlog::debug("request fetch on selector {}", selector);
+        if (m_fetch_start_callback) {
+          m_fetch_start_callback();
+        }
         ::fetch(m_session, params);
         return true;
     } else {
@@ -465,7 +469,7 @@ bool Session::fetch(const std::string& selector)
 bool Session::subscribe(const std::string& selector)
 {
     // for testing purposes only
-    if (!m_session) {
+    /*if (!m_session) {
         m_fetch_in_progress = true;
         for (int i = 0; i < 100; ++i) {
           m_topics.emplace_back("TOPIC_LOAD",
@@ -474,9 +478,9 @@ bool Session::subscribe(const std::string& selector)
         //onFetchCompleted(nullptr);
         onFetchError(Error{DIFF_ERR_MESSAGE_LOSS, "Connection failed"});
         return true;
-    }
+    }*/
 
-    std::lock_guard<std::mutex> lk(m_subscribeMtx);
+    std::lock_guard<std::mutex> lk(m_operationMutex);
     if (m_session  && !m_fetch_in_progress) {
         SUBSCRIPTION_PARAMS_T params;
         params.on_subscribe = &on_subscribe;
@@ -485,9 +489,10 @@ bool Session::subscribe(const std::string& selector)
         params.on_error = &on_subscribe_error;
         params.on_discard = &on_subscribe_discard;
         params.context = this;
-        m_selector = selector;
-        //m_fetchStatus = Error{DIFF_ERR_SUCCESS, std::string()};
         m_subscribe_in_progress = true;
+        if (m_subscribe_start_callback) {
+          m_subscribe_start_callback();
+        }
         spdlog::debug("request subscribe on selector {}", selector);
         ::subscribe(m_session, params);
         return true;
@@ -529,13 +534,13 @@ bool Session::notify() {
 
 
 void Session::onFetchTopic(Topic&& t) {
-  std::lock_guard<std::mutex> lk(m_fetchMtx);
+  std::lock_guard<std::mutex> lk(m_operationMutex);
   m_topics.push_back(std::move(t));
 }
 
 void Session::onFetchError(Error error) {
   {
-        std::lock_guard<std::mutex> lk(m_fetchMtx);
+        std::lock_guard<std::mutex> lk(m_operationMutex);
         m_fetchStatus = error;
         m_fetch_in_progress = false;
   }
@@ -544,9 +549,20 @@ void Session::onFetchError(Error error) {
   }
 }
 
+void Session::onFetchDiscard() {
+  {
+    std::lock_guard<std::mutex> lk(m_operationMutex);
+    m_fetchStatus = Error{.m_code = DIFF_ERR_SUCCESS, .m_message = "Discarded"};
+    m_fetch_in_progress = false;
+  }
+  if (m_fetch_discard_callback) {
+    m_fetch_discard_callback();
+  }
+}
+
 void Session::onFetchCompleted(void*) {
   {
-    std::lock_guard<std::mutex> lk(m_fetchMtx);
+    std::lock_guard<std::mutex> lk(m_operationMutex);
     m_fetch_in_progress = false;
   }
   if (m_fetch_completed_callback) {
@@ -558,8 +574,22 @@ void Session::setFetchCompletedCallback(FetchCompleted&& fc) {
     m_fetch_completed_callback = std::move(fc);
 }
 
-void Session::setFetchErrorCallback(FetchError&& fe) {
+void Session::setFetchErrorCallback(ErrorCallback&& fe) {
     m_fetch_error_callback = std::move(fe);
+}
+
+void Session::setFetchDiscardCallback(FetchCompleted&& dc)
+{
+    m_fetch_discard_callback = std::move(dc);
+}
+
+void Session::setSubscribeErrorCallback(ErrorCallback&& ec)
+{
+    m_subscribe_error_callback = std::move(ec);
+}
+
+void Session::setFetchStartCallback(FetchStart&& fs) {
+    m_fetch_start_callback = std::move(fs);
 }
 
 void Session::setOnTopicSubscriptionEvent(TopicSubscriptionEvent&& tse) {
@@ -574,18 +604,33 @@ void Session::onTopicSubscriptionEvent(SubscriptionNotification&& ts) {
 }
 
 void Session::onSubscribeTopic(Topic&& t) {
-    std::lock_guard<std::mutex> lk(m_subscribeMtx);
-    m_subscrube_topics.push_back(std::move(t));
-    if (!m_subscribe_in_progress && m_subscribe_completed_callback) {
+    {
+      std::lock_guard<std::mutex> lk(m_operationMutex);
+      m_subscrube_topics.push_back(std::move(t));
+    }
+    if (!isSubscribtionInProgress() && m_subscribe_completed_callback) {
       m_subscribe_completed_callback(); // call to append new elements
     }
 }
 
 void Session::onSubscribeCompleted() {
-    std::lock_guard<std::mutex> lk(m_subscribeMtx);
-    m_subscribe_in_progress = false;
+    {
+      std::lock_guard<std::mutex> lk(m_operationMutex);
+      m_subscribe_in_progress = false;
+    }
     if (m_subscribe_completed_callback) {
       m_subscribe_completed_callback();
+    }
+}
+
+void Session::onSubscribeError(Error error) {
+    {
+      std::lock_guard<std::mutex> lk(m_operationMutex);
+      m_subscribeStatus = error;
+      m_subscribe_in_progress = false;
+    }
+    if (m_subscribe_error_callback) {
+      m_subscribe_error_callback(error);
     }
 }
 

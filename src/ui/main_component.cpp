@@ -7,15 +7,13 @@
 
 using namespace ftxui;
 
-std::mutex MainComponent::test_lock;
-std::string MainComponent::test_data;
 
-MainComponent::MainComponent(Session& session, Animator& animator, Closure&& screen_exit)
+MainComponent::MainComponent(Session& session, Closure&& screen_exit)
     : m_screen_exit_(std::move(screen_exit)),
       log_displayer_1_(Make<LogDisplayer>()),
       log_displayer_2_(Make<LogDisplayer>()),
-      m_session(session),
-      m_animator(animator)
+      m_session(session)
+      //m_animator(animator)
     {
   Add(Container::Vertical({
       toggle_,
@@ -38,7 +36,8 @@ MainComponent::MainComponent(Session& session, Animator& animator, Closure&& scr
                       //m_btn_clear_
                   }),
                   //m_error_report,
-                  log_displayer_2_//, m_payload_text_box_,
+                  m_subsribe_error_report,
+                  log_displayer_2_, m_subscribe_payload_text_box_
                   //m_btn_copy_
               }),
               info_component_,
@@ -48,14 +47,17 @@ MainComponent::MainComponent(Session& session, Animator& animator, Closure&& scr
 }
 
 bool MainComponent::OnEvent(Event event) {
-  if (event == Event::Special("fetch")) {
+  /*if (event == Event::Special("fetch")) {
     std::lock_guard<std::mutex> lk(test_lock);
     m_current_payload = test_data;
+  }*/
+
+  if (event == Event::Special("fetch")) {
+    ++m_spinner_indx;
   }
 
-  if (event == Event::Special("animation")) {
-    ++m_spinner_indx;
-    return true;
+  if (event == Event::Special("subscribe")) {
+    ++m_subscribtion_spinner_indx;
   }
 
   return ComponentBase::OnEvent(event);
@@ -63,9 +65,9 @@ bool MainComponent::OnEvent(Event event) {
 
 
 Element MainComponent::Render() {
-  //static int i = 0;
-
   m_current_payload = log_displayer_1_->GetSelected();
+  m_subscribe_payload = log_displayer_2_->GetSelected();
+  auto lines_count = std::min(tab_selected_, 1) == 0 ? m_topics.size(): m_subscribe_topics.size();
 
   int current_line =
       (std::min(tab_selected_, 1) == 0 ? log_displayer_1_ : log_displayer_2_)
@@ -80,13 +82,13 @@ Element MainComponent::Render() {
       separator(),
       text(to_wstring(current_line)),
       text(L"/"),
-      text(to_wstring(m_session.getFetchedTopics().size())),
+      text(std::to_string(lines_count)),
       text(L"  ["),
       text(to_wstring(0)),
       text(L"]"),
       separator(),
       gauge(float(current_line) /
-            float(std::max(1, (int)m_session.getFetchedTopics().size() - 1))) |
+            float(std::max(1, (int)lines_count - 1))) |
           color(Color::GrayDark),
       //separator()//,
       //spinner(18, m_spinner_indx),
@@ -111,7 +113,7 @@ Element MainComponent::Render() {
                 //window(text(L"Selector"), hbox(container_search_selector_->Render(), m_btn_search_->Render())) | flex,
                 //filler(),
             }) | notflex,*/
-            log_displayer_1_->RenderLines(m_session.getFetchedTopics()) | flex_shrink,
+            log_displayer_1_->RenderLines(m_topics) | flex_shrink,
             window(text("Content"), hbox(m_payload_text_box_->Render() | size(ftxui::HEIGHT, ftxui::EQUAL, 10) | xflex_grow, vbox(m_btn_copy_->Render())))
         });
   }
@@ -123,7 +125,7 @@ Element MainComponent::Render() {
             header,
             separator(),
             window(text(L"Subscribe"), hbox(text("Enter path:"), separator(), m_subscribe_selector_->Render(), m_btn_subscribe_->Render()) | notflex),
-            //m_error_report->Render(),
+            m_subsribe_error_report->Render(),
 
             /*hbox({
                 window(text(L"Type"), container_level_filter_->Render()) |
@@ -134,8 +136,8 @@ Element MainComponent::Render() {
                 //window(text(L"Selector"), hbox(container_search_selector_->Render(), m_btn_search_->Render())) | flex,
                 //filler(),
             }) | notflex,*/
-            log_displayer_2_->RenderLines(m_session.getSubscribedTopics()) | flex_shrink,
-            //window(text("Content"), hbox(m_payload_text_box_->Render() | size(ftxui::HEIGHT, ftxui::EQUAL, 10) | xflex_grow, vbox(m_btn_copy_->Render())))
+            log_displayer_2_->RenderLines(m_subscribe_topics) | flex_shrink,
+            window(text("Content"), hbox(m_subscribe_payload_text_box_->Render() | size(ftxui::HEIGHT, ftxui::EQUAL, 10) | xflex_grow, vbox(m_btn_copy_->Render())))
         });
   }
 

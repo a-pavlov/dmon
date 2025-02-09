@@ -29,9 +29,14 @@ std::map<std::wstring, LogStyle> log_style = {
 }  // namespace
 
 Element LogDisplayer::RenderLines(const std::vector<Topic>& topics) {
-  if (size != topics.size()) {
+  if (size != topics.size() && selected_ > topics.size()) {
     selected_ = 0;
   }
+
+  if (topics.empty()) {
+    m_seltext.clear();
+  }
+
   size = topics.size();
 
   Elements list;
