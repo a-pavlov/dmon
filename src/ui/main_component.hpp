@@ -9,12 +9,14 @@
 #include <ftxui/component/screen_interactive.hpp>
 #include <map>
 #include <list>
+#include <fstream>
 
 #include "ui/log_displayer.hpp"
 
 #include "data/session.h"
 #include "spdlog/spdlog.h"
 #include "clip.h"
+#include "data/hexdump.h"
 
 using namespace ftxui;
 
@@ -96,7 +98,6 @@ class MainComponent : public ComponentBase {
   void onFetchCompleted(const std::string& errorMessage, std::vector<Topic>&& topics, std::string&& selector) {
     m_topics = std::move(topics);
     m_fetch_error_message = errorMessage;
-    //container_level_filter_->
   }
 
   void onSubscribeCompleted(const std::string& errorMessage, std::vector<Topic>&& topics, std::string&& selector) {
@@ -147,6 +148,20 @@ class MainComponent : public ComponentBase {
         }
       }, ButtonOption::Ascii());
   Component m_payload_text_box_ = Input(&m_current_payload, InputOption{.multiline = true});
+  Component m_btn_dump_exit = Button("Dump data and close application", [&](){
+        std::ofstream fs("./dump.txt");
+        if (fs) {
+          auto print = [&fs](auto it) {
+            fs << it.m_topic_type << ":"  << it.m_path << ":\n";
+            fs << CustomHexdump<64, true>(&it.m_buffer[0], it.m_buffer.size());
+          };
+          fs << "Fetched topics:\n";
+          std::for_each(m_topics.begin(), m_topics.end(), print);
+          fs << "Subscribed topics:\n";
+          std::for_each(m_subscribe_topics.begin(), m_subscribe_topics.end(), print);
+        }
+        m_screen_exit_();
+      }, ButtonOption::Ascii());
   Component m_btn_exit_ = Button("Close application", m_screen_exit_, ButtonOption::Ascii());
   Component m_btn_copy_ = Button("Copy", [&](){
         spdlog::debug("Copy to clipboard: {}", m_current_payload);

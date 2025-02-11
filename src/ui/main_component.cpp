@@ -41,7 +41,7 @@ MainComponent::MainComponent(Session& session, Closure&& screen_exit)
                   m_subscribe_payload_text_box_
                   //m_btn_copy_
               }),
-              m_btn_exit_
+              Container::Vertical({m_btn_dump_exit, m_btn_exit_})
           },
           &tab_selected_)//,
        //m_btn_exit_
@@ -172,7 +172,7 @@ Element MainComponent::Render() {
       vbox({
           header,
           separator(),
-          m_btn_exit_->Render() | center,
+          vbox(m_btn_dump_exit->Render()| center, m_btn_exit_->Render() | center) | center,
           filler()
       });
 }

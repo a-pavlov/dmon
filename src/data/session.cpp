@@ -159,6 +159,24 @@ Topic::Topic(const std::string& type, const std::string& path, const char* ptr, 
     return HANDLER_SUCCESS;
 }*/
 
+
+std::string state2String(SESSION_STATE_T st) {
+    static const std::string states[] = {
+        "SESSION_STATE_UNKNOWN",
+        "CONNECTING",
+        "CONNECTED_INITIALISING",
+        "CONNECTED_ACTIVE",
+        "RECOVERING_RECONNECT",
+        "RECOVERING_FAILOVER",
+        "CLOSED_BY_CLIENT",
+        "CLOSED_BY_SERVER",
+        "CLOSED_FAILED"};
+    if (static_cast<int>(st) < -1 || static_cast<int>(st) > (sizeof(states)/sizeof(states[0]) - 1)) {
+        return "????";
+    }
+
+    return states[static_cast<int>(st) + 1];
+}
 /*
  * This callback is used when the session state changes, e.g. when a session
  * moves from a "connecting" to a "connected" state, or from "connected" to
@@ -169,6 +187,7 @@ static void on_session_state_changed (
         const SESSION_STATE_T old_state,
         const SESSION_STATE_T new_state)
 {
+    spdlog::info("session {} changed state from {} to {}", getSessionIdAsString(session->id), state2String(old_state), state2String(new_state));
 }
 
 static void on_session_handle_error() {
@@ -377,7 +396,7 @@ Session::~Session()
     spdlog::info("close session handler");
 
     if (m_credentials) {
-        spdlog::info("close session {} free credentials", getSessionIdAsString(m_session->id));
+        spdlog::info("close session {} free credentials", m_session?getSessionIdAsString(m_session->id):"???");
         credentials_free(m_credentials);
     }
 
