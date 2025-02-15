@@ -61,7 +61,6 @@ ARG_OPTS_T arg_opts[] = {
     {'r', "retries", "Reconnection retry attempts", ARG_OPTIONAL, ARG_HAS_VALUE, "5" },
     {'t', "timeout", "Reconnection timeout for a disconnected session", ARG_OPTIONAL, ARG_HAS_VALUE, NULL },
     {'s', "sleep", "Time to sleep before disconnecting (in seconds).", ARG_OPTIONAL, ARG_HAS_VALUE, "5" },
-    {'f', "selector", "Diffusion selector - fetch topics by path, \"?Phoenix/Outcomes/.*//\"", ARG_OPTIONAL, ARG_HAS_VALUE, nullptr},
     END_OF_ARG_OPTS
 };
 
@@ -82,32 +81,30 @@ int main(int argc, char** argv) {
   spdlog::set_level(spdlog::level::debug);
 
 
-  /*int fd = open("output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  if (fd == -1) {
-    perror("Failed to open output file");
-    return 1;
-  }
-
-  dup2(fd, STDOUT_FILENO);
-  close(fd);*/
-
-
   /*
     * Standard command-line parsing.
     */
     HASH_T *options = parse_cmdline(argc, argv, arg_opts);
     if(options == nullptr || hash_get(options, "help") != nullptr) {
-        show_usage(argc, argv, arg_opts);
+        // replace show usage due to fprintf wrapped in the diffusion library
+        std::cout << "Usage:\n";
+        for (size_t i = 0; i < sizeof(arg_opts)/sizeof(arg_opts[0]) - 1; ++i)
+        {
+          std::cout << "-" << arg_opts[i].short_arg << "/-" << arg_opts[i].long_arg << "  "
+                << arg_opts[i].description;
+
+          if (arg_opts[i].default_value != nullptr){
+            std::cout << " default value: " << arg_opts[i].default_value;
+          }
+
+          std::cout << "\n";
+        }
         return EXIT_FAILURE;
     }
 
     const char *url = static_cast<const char*>(hash_get(options, "url"));
     const char *principal = static_cast<const char*>(hash_get(options, "principal"));
-    //CREDENTIALS_T *credentials = nullptr;
     const char *password = static_cast<const char*>(hash_get(options, "credentials"));
-    //if(password != NULL) {
-    //        credentials = credentials_create_password(password);
-    //}
 
     //long retry_delay = std::atol(static_cast<const char*>(hash_get(options, "delay")));
     //long retry_count = std::atoi(static_cast<const char*>(hash_get(options, "retries")));
@@ -126,15 +123,10 @@ int main(int argc, char** argv) {
     Session session;
     Error e;
     if (!session.connect(url, principal, password, e)) {
-      spdlog::warn("Connection error {} message {}", error2Str(e.m_code), e.m_message);
+      spdlog::warn("Connection error {} message {}",  error2Str(e.m_code), e.m_message);
       std::cerr << "Connection error " << error2Str(e.m_code) << ": " << e.m_message << std::endl;
-      //return 1;
+      return EXIT_FAILURE;
     }
-
-    //assert(session.IsValid());
-
-  //auto line_receiver = MakeReceiver<std::wstring>();
-  //auto line_sender = line_receiver->MakeSender();
 
   auto screen = ScreenInteractive::Fullscreen();
   Animator animator(screen);
@@ -189,33 +181,7 @@ int main(int argc, char** argv) {
   });
 
   session.notify();
-
-  //std::atomic<bool> exit{false};
-
-  /*std::thread producer = std::thread([&exit, &screen](){
-    int counter{0};
-    while(!exit) {
-
-      using namespace std::chrono_literals;
-      std::this_thread::sleep_for(2s);
-      counter = counter + 2;
-      {
-        std::lock_guard<std::mutex> lk(MainComponent::test_lock);
-        MainComponent::test_data = "New Data " + std::to_string(counter) + "\n" + "Some text later";
-      }
-      screen.PostEvent(Event::Custom);
-    }
-  });
-   */
-
-  // Read from the log file.
-  //std::thread line_producer_thread(LineProducer, log_fd, std::move(line_sender),
-  //                                 &screen);
-
   screen.Loop(component);
-  //exit = true;
-  //producer.join();
   spdlog::info("finished");
-
   return EXIT_SUCCESS;
 }
